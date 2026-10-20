@@ -1,4 +1,3 @@
-
 # Arquivos gerados pelo Python
 __pycache__/
 *.pyc
@@ -6,4 +5,3 @@ __pycache__/
 # Banco local: guarda e-mails e hashes de senha; as tabelas são recriadas automaticamente
 code_py/sistema.db
 
-CLAUDE.md
