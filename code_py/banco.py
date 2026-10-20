@@ -6,7 +6,7 @@ from contextlib import closing  # Fechamento da conexão após o uso.
 # ----------------------------------------------- #
 
 from .user import User
-from .user_types import Discente, Docente, Admin
+from .user_types import Discente, Docente
 
 # ============================= { CONFIGURAÇÃO } ============================= #
 
@@ -26,18 +26,19 @@ def conectar():
 # ============================= { CRIAÇÃO DAS TABELAS } ============================= #
 
 def criar_tabelas():
-    #Cria a tabela de usuários caso ela ainda não exista.
+    #Cria a tabela de perfis caso ela ainda não exista.
+    # A senha fica só na tabela 'acessos' (login.py); o perfil é ligado a ela pelo e-mail.
 
     with closing(conectar()) as conexao, conexao:
         conexao.execute('''
             CREATE TABLE IF NOT EXISTS usuarios (
                 id_user TEXT PRIMARY KEY,
                 tipo_usuario TEXT NOT NULL
-                    CHECK (tipo_usuario IN ('discente', 'docente', 'admin')),
+                    CHECK (tipo_usuario IN ('discente', 'docente')),
                 nome TEXT NOT NULL,
                 cpf TEXT UNIQUE,
-                email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                senha_hash TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE COLLATE NOCASE
+                    REFERENCES acessos(email),
                 ano_entrada INTEGER,
                 semestre_entrada INTEGER,
                 curso TEXT,
@@ -49,40 +50,76 @@ def criar_tabelas():
 
 # ============================= { CONSULTAS } ============================= #
 
-def buscar_usuario_por_id(id_user):
-    # Busca um usuário pelo ID.
+def buscar_perfil(email):
+    # Busca o perfil pelo e-mail e devolve o objeto (Discente/Docente), ou None se ainda não existir.
+
+    criar_tabelas()
 
     with closing(conectar()) as conexao:
-        usuario = conexao.execute(
+        dados = conexao.execute(
             '''
-            SELECT *
+            SELECT usuarios.*, acessos.senha_hash
             FROM usuarios
-            WHERE id_user = ?
+            JOIN acessos ON acessos.email = usuarios.email
+            WHERE usuarios.email = ?
             ''',
-            (id_user,)
+            (email.strip(),)
         ).fetchone()
 
         # fetchone() -> retorna o primeiro resultado da consulta ou None se não houver resultados.
 
-    return usuario
+    return reconstruir_usuario(dados)
 
 
 # ============================= { CADASTRO } ============================= #
+
+def cadastrar_perfil(conta, nome, cpf, ano_entrada, semestre_entrada, curso_ou_area):
+    # Cria o perfil de quem já tem acesso (login.py), usando o e-mail e a senha desse acesso.
+
+    if conta.tipo_usuario not in ('discente', 'docente'):
+        raise ValueError('Apenas discentes e docentes possuem perfil.')
+
+    with closing(conectar()) as conexao:
+        acesso = conexao.execute(
+            'SELECT senha_hash FROM acessos WHERE email = ?',
+            (conta.email,)
+        ).fetchone()
+
+    if acesso is None:
+        raise ValueError('Acesso não encontrado.')
+
+    classe = Discente if conta.tipo_usuario == 'discente' else Docente
+
+    usuario = classe(
+        ano_entrada,
+        semestre_entrada,
+        nome,
+        cpf,
+        conta.email,
+        None,
+        curso_ou_area,
+        senha_hash=acesso['senha_hash']
+    )
+
+    try:
+        cadastrar_usuario(usuario)
+    except sqlite3.IntegrityError:
+        raise ValueError('Este e-mail ou CPF já possui perfil cadastrado.')
+
+    return usuario
+
 
 def cadastrar_usuario(usuario):
 
     if not isinstance(usuario, User):
         raise TypeError('O usuário deve ser um objeto da classe User.')
 
-    # Gera o hash da senha sem armazenar a senha original.
-    senha_hash = usuario.get_hash_senha()
-
     criar_tabelas()
 
     # A matrícula é sorteada; se já existir, sorteia outra (até 3 tentativas).
     for tentativa in range(3):
         try:
-            _inserir_usuario(usuario, senha_hash)
+            _inserir_usuario(usuario)
             return usuario.id_user
 
         except sqlite3.IntegrityError as erro:
@@ -92,7 +129,7 @@ def cadastrar_usuario(usuario):
             usuario.sortear_nova_matricula()
 
 
-def _inserir_usuario(usuario, senha_hash):
+def _inserir_usuario(usuario):
 
     # Obtém os dados comuns a todos os tipos de usuário.
     dados = (
@@ -101,7 +138,6 @@ def _inserir_usuario(usuario, senha_hash):
         usuario.nome,
         usuario.cpf,
         usuario.email,
-        senha_hash,
         getattr(usuario, 'ano_entrada', None),
         getattr(usuario, 'semestre_entrada', None),
         getattr(usuario, 'curso', None),
@@ -119,13 +155,12 @@ def _inserir_usuario(usuario, senha_hash):
                     nome,
                     cpf,
                     email,
-                    senha_hash,
                     ano_entrada,
                     semestre_entrada,
                     curso,
                     area
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                 dados
             )
@@ -167,15 +202,6 @@ def reconstruir_usuario(dados):
             None,
             dados['area'],
             id_fixo=dados['id_user'],
-            senha_hash=dados['senha_hash']
-        )
-
-    if tipo == 'admin':
-        return Admin(
-            dados['nome'],
-            dados['email'],
-            None,
-            dados['id_user'],
             senha_hash=dados['senha_hash']
         )
 

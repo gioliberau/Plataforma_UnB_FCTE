@@ -1,6 +1,8 @@
 from getpass import getpass     # Lê a senha no terminal sem exibi-la.
 
 from .login import autenticar, trocar_senha, gerar_acesso, tipos_usuario
+from .banco import buscar_perfil, cadastrar_perfil
+from .user_types import cursos_disponiveis
 from .session import Sessao
 
 
@@ -55,10 +57,19 @@ class InterfaceFCTE:
             if conta is None:
                 return
 
-        # Inicia a sessão com o usuário autenticado.
-        self.__sessao.iniciar(conta)
+        # Discentes e docentes precisam de perfil (nome, matrícula, curso/área) para entrar.
+        perfil = None
 
-        print(f'\nBem-vindo(a), {conta.email}!')
+        if not conta.eh_admin:
+            perfil = buscar_perfil(conta.email) or self.__completar_perfil(conta)
+
+            if perfil is None:
+                return
+
+        # Inicia a sessão com o usuário autenticado.
+        self.__sessao.iniciar(conta, perfil)
+
+        print(f'\nBem-vindo(a), {perfil.nome if perfil else conta.email}!')
 
         # Direciona o usuário para o menu correspondente ao seu tipo.
         self.__abrir_menu_usuario()
@@ -81,6 +92,40 @@ class InterfaceFCTE:
 
         print('Senha alterada com sucesso!')
         return conta
+
+
+    def __completar_perfil(self, conta):
+        print('\nComplete seu cadastro para continuar.')
+
+        nome = input('Nome completo: ').strip()
+        cpf = input('CPF (somente números): ').strip()
+
+        rotulo = 'Curso' if conta.tipo_usuario == 'discente' else 'Área de atuação'
+        print(f'{rotulo}:')
+
+        for numero, curso in enumerate(cursos_disponiveis, start=1):
+            print(f'{numero} - {curso}')
+
+        try:
+            ano = int(input('Ano de entrada: '))
+            semestre = int(input('Semestre de entrada (1 ou 2): '))
+            escolha = int(input(f'Número do(a) {rotulo.lower()}: '))
+
+            if not 1 <= escolha <= len(cursos_disponiveis):
+                raise ValueError(f'{rotulo} inválido(a).')
+
+            perfil = cadastrar_perfil(
+                conta, nome, cpf, ano, semestre,
+                cursos_disponiveis[escolha - 1]
+            )
+
+        except ValueError as erro:
+            print(f'Não foi possível salvar o cadastro: {erro}')
+            print('Faça login novamente para tentar outra vez.')
+            return None
+
+        print(f'Cadastro concluído! Sua matrícula é {perfil.id_user}.')
+        return perfil
 
 
     def __gerar_acesso(self):
@@ -123,9 +168,16 @@ class InterfaceFCTE:
 
     def __abrir_menu_usuario(self):
         conta = self.__sessao.usuario
+        perfil = self.__sessao.perfil
 
         while self.__sessao.autenticada:
             print('\n===== MENU DO USUÁRIO =====')
+
+            if perfil is not None:
+                print(f'Nome: {perfil.nome}')
+                print(f'Matrícula: {perfil.id_user}')
+                print(f'Curso/Área: {getattr(perfil, "curso", None) or perfil.area}')
+
             print(f'E-mail: {conta.email}')
             print(f'Tipo: {conta.tipo_usuario}')
 

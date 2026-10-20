@@ -5,6 +5,7 @@ from pathlib import Path
 
 from code_py import banco, login
 from code_py.user_types import Discente
+from code_py.seguranca import verificar_senha
 
 
 class TestLogin(unittest.TestCase):
@@ -63,21 +64,69 @@ class TestPerfil(unittest.TestCase):
         aluna = Discente(2024, 1, 'Ana', '52998224725', 'ana@unb.br', 'senha1234', 'Engenharia de Software')
         self.assertEqual(aluna.cpf, '529.982.247-25')
 
-    def test_cadastro_e_reconstrucao(self):
-        with tempfile.TemporaryDirectory() as pasta:
-            original = banco.caminho_banco
-            banco.caminho_banco = Path(pasta) / 'teste.db'
 
-            try:
-                aluna = Discente(2024, 1, 'Ana', '52998224725', 'ana@unb.br', 'senha1234', 'Engenharia de Software')
-                matricula = banco.cadastrar_usuario(aluna)
+class TestPerfilLigadoAoLogin(unittest.TestCase):
 
-                recriada = banco.reconstruir_usuario(banco.buscar_usuario_por_id(matricula))
-                self.assertEqual(recriada.id_user, matricula)
-                self.assertEqual(recriada.cpf, '529.982.247-25')
-                self.assertEqual(recriada.get_hash_senha(), aluna.get_hash_senha())
-            finally:
-                banco.caminho_banco = original
+    def setUp(self):
+        self.pasta = tempfile.TemporaryDirectory()
+        self.banco_original = banco.caminho_banco
+        banco.caminho_banco = Path(self.pasta.name) / 'teste.db'
+
+        admin = login.criar_admin_inicial('admin@unb.br', 'adminsenha')
+        self.admin = admin
+        senha_inicial = login.gerar_acesso(admin, 'ana@aluno.unb.br', 'discente')
+        self.conta = login.trocar_senha('ana@aluno.unb.br', senha_inicial, 'minhasenha')
+
+    def tearDown(self):
+        banco.caminho_banco = self.banco_original
+        self.pasta.cleanup()
+
+    def test_primeiro_acesso_cria_perfil(self):
+        self.assertIsNone(banco.buscar_perfil('ana@aluno.unb.br'))
+
+        criado = banco.cadastrar_perfil(
+            self.conta, 'Ana', '52998224725', 2024, 1, 'Engenharia de Software'
+        )
+        perfil = banco.buscar_perfil('ANA@aluno.unb.br')
+
+        self.assertEqual(perfil.id_user, criado.id_user)
+        self.assertEqual(perfil.nome, 'Ana')
+        self.assertEqual(perfil.cpf, '529.982.247-25')
+        self.assertEqual(perfil.curso, 'Engenharia de Software')
+
+        # A senha do perfil é a mesma do login (uma única senha por pessoa).
+        self.assertTrue(verificar_senha('minhasenha', perfil.get_hash_senha()))
+
+    def test_perfil_acompanha_troca_de_senha(self):
+        banco.cadastrar_perfil(self.conta, 'Ana', '52998224725', 2024, 1, 'Engenharia de Software')
+        login.trocar_senha('ana@aluno.unb.br', 'minhasenha', 'outrasenha')
+
+        perfil = banco.buscar_perfil('ana@aluno.unb.br')
+        self.assertTrue(verificar_senha('outrasenha', perfil.get_hash_senha()))
+
+    def test_perfil_recusa_repeticao_e_admin(self):
+        banco.cadastrar_perfil(self.conta, 'Ana', '52998224725', 2024, 1, 'Engenharia de Software')
+
+        with self.assertRaises(ValueError):
+            banco.cadastrar_perfil(self.conta, 'Ana', '11144477735', 2024, 1, 'Engenharia de Software')
+
+        senha = login.gerar_acesso(self.admin, 'bia@aluno.unb.br', 'discente')
+        bia = login.trocar_senha('bia@aluno.unb.br', senha, 'senhadabia')
+        with self.assertRaises(ValueError):    # CPF já usado pela Ana
+            banco.cadastrar_perfil(bia, 'Bia', '52998224725', 2024, 1, 'Engenharia de Software')
+
+        with self.assertRaises(ValueError):
+            banco.cadastrar_perfil(self.admin, 'Admin', '11144477735', 2024, 1, 'Engenharia de Software')
+
+    def test_docente_com_area_invalida(self):
+        senha = login.gerar_acesso(self.admin, 'prof@unb.br', 'docente')
+        prof = login.trocar_senha('prof@unb.br', senha, 'senhaprof')
+
+        with self.assertRaises(ValueError):
+            banco.cadastrar_perfil(prof, 'Prof', '11144477735', 2015, 2, 'Medicina')
+
+        perfil = banco.cadastrar_perfil(prof, 'Prof', '11144477735', 2015, 2, 'Engenharia de Energia')
+        self.assertEqual(perfil.area, 'Engenharia de Energia')
 
 
 if __name__ == '__main__':
