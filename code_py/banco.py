@@ -1,3 +1,4 @@
+import re                       # Remover a pontuação do CPF salvo.
 import sqlite3                  # Conectar e executar operações no banco SQLite.
 from pathlib import Path        # Manipulação de caminhos de arquivos e pastas.
 from contextlib import closing  # Fechamento da conexão após o uso.
@@ -6,7 +7,6 @@ from contextlib import closing  # Fechamento da conexão após o uso.
 
 from .user import User
 from .user_types import Discente, Docente, Admin
-from .seguranca import verificar_senha
 
 # ============================= { CONFIGURAÇÃO } ============================= #
 
@@ -28,7 +28,7 @@ def conectar():
 def criar_tabelas():
     #Cria a tabela de usuários caso ela ainda não exista.
 
-    with conectar() as conexao:
+    with closing(conectar()) as conexao, conexao:
         conexao.execute('''
             CREATE TABLE IF NOT EXISTS usuarios (
                 id_user TEXT PRIMARY KEY,
@@ -52,7 +52,7 @@ def criar_tabelas():
 def buscar_usuario_por_id(id_user):
     # Busca um usuário pelo ID.
 
-    with conectar() as conexao:
+    with closing(conectar()) as conexao:
         usuario = conexao.execute(
             '''
             SELECT *
@@ -67,21 +67,6 @@ def buscar_usuario_por_id(id_user):
     return usuario
 
 
-def buscar_usuario_por_email(email):
-    #Busca um usuário pelo e-mail.
-
-    with conectar() as conexao:
-        usuario = conexao.execute(
-            '''
-            SELECT *
-            FROM usuarios
-            WHERE email = ?
-            ''',
-            (email,)
-        ).fetchone()
-
-    return usuario
-
 # ============================= { CADASTRO } ============================= #
 
 def cadastrar_usuario(usuario):
@@ -91,6 +76,23 @@ def cadastrar_usuario(usuario):
 
     # Gera o hash da senha sem armazenar a senha original.
     senha_hash = usuario.get_hash_senha()
+
+    criar_tabelas()
+
+    # A matrícula é sorteada; se já existir, sorteia outra (até 3 tentativas).
+    for tentativa in range(3):
+        try:
+            _inserir_usuario(usuario, senha_hash)
+            return usuario.id_user
+
+        except sqlite3.IntegrityError as erro:
+            if 'usuarios.id_user' not in str(erro) or tentativa == 2:
+                raise
+
+            usuario.sortear_nova_matricula()
+
+
+def _inserir_usuario(usuario, senha_hash):
 
     # Obtém os dados comuns a todos os tipos de usuário.
     dados = (
@@ -105,8 +107,6 @@ def cadastrar_usuario(usuario):
         getattr(usuario, 'curso', None),
         getattr(usuario, 'area', None)
     )
-
-    criar_tabelas()
 
     # Abre uma conexão com o banco e garante que ela seja fechada ao final.
     with closing(conectar()) as conexao:
@@ -130,9 +130,6 @@ def cadastrar_usuario(usuario):
                 dados
             )
 
-    
-    return usuario.id_user
-
 # ============================= { RECONSTRUÇÃO DE OBJETOS } ============================= #
 
 def reconstruir_usuario(dados):
@@ -142,6 +139,9 @@ def reconstruir_usuario(dados):
 
     tipo = dados['tipo_usuario']
 
+    # O CPF é salvo formatado (000.000.000-00); a validação espera só os dígitos.
+    cpf = re.sub(r'\D', '', dados['cpf']) if dados['cpf'] else None
+
 
     # Reconstrói o objeto correspondente ao tipo.
     if tipo == 'discente':
@@ -149,10 +149,12 @@ def reconstruir_usuario(dados):
             dados['ano_entrada'],
             dados['semestre_entrada'],
             dados['nome'],
-            dados['cpf'],
+            cpf,
             dados['email'],
-            'SenhaTemporaria123',
-            dados['curso']
+            None,
+            dados['curso'],
+            id_fixo=dados['id_user'],
+            senha_hash=dados['senha_hash']
         )
 
     if tipo == 'docente':
@@ -160,38 +162,21 @@ def reconstruir_usuario(dados):
             dados['ano_entrada'],
             dados['semestre_entrada'],
             dados['nome'],
-            dados['cpf'],
+            cpf,
             dados['email'],
-            'SenhaTemporaria123',
-            dados['area']
+            None,
+            dados['area'],
+            id_fixo=dados['id_user'],
+            senha_hash=dados['senha_hash']
         )
 
     if tipo == 'admin':
         return Admin(
             dados['nome'],
             dados['email'],
-            'SenhaTemporaria123',
-            dados['id_user']
+            None,
+            dados['id_user'],
+            senha_hash=dados['senha_hash']
         )
 
     raise ValueError('Tipo de usuário desconhecido.')
-
-# ============================= { AUTENTICAÇÃO } ============================= #
-
-def autenticar_usuario(email, senha):
-    
-    if not isinstance(email, str) or not email.strip():
-        return None
-
-    if not isinstance(senha, str) or not senha:
-        return None
-
-    usuario = buscar_usuario_por_email(email.strip())
-
-    if usuario is None:     # Se o usuário não existir a autenticação falha.
-        return None
-
-    if not verificar_senha(senha, usuario['senha_hash']):
-        return None
-
-    return reconstruir_usuario(usuario)

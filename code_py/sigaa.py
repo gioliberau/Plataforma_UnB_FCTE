@@ -97,7 +97,7 @@ def _requisitar(navegador, url, dados=None, referer=None):
         return html, resposta.geturl()
 
 
-def buscar_turmas_publicas(ano=2026, semestre=2, departamento='673'):
+def buscar_turmas_publicas(ano, semestre, departamento='673'):
     if type(ano) is not int or ano < 2000:
         raise ValueError('Informe um ano válido.')
 

@@ -3,13 +3,8 @@ from html.parser import HTMLParser
 from urllib.request import Request, urlopen
 from urllib.parse import urljoin
 import re
-from io import BytesIO
-from pypdf import PdfReader
 
 url_cardapio_gama = 'https://ru.unb.br/cardapio-gama/'
-url_cardapio_geral = 'https://ru.unb.br/cardapio-refeitorio/'
-url_valores = 'https://ru.unb.br/precos-e-grupos/'
-url_unidades = 'https://ru.unb.br/unidades/'
 
 
 class AnalisadorLinks(HTMLParser):
@@ -139,20 +134,6 @@ def buscar_cardapios_publicos(campus='Gama'):
     }
 
 
-def consultar_valores_publicos():
-    return {
-        'url': url_valores,
-        'fonte': url_valores
-    }
-
-
-def consultar_unidades_publicas():
-    return {
-        'url': url_unidades,
-        'fonte': url_unidades
-    }
-
-
 def interpretar_periodo_cardapio(titulo, hoje=None):
     
     #Extrai as datas do título e identifica se o cardápio está vigente.
@@ -198,78 +179,3 @@ def interpretar_periodo_cardapio(titulo, hoje=None):
         'data_fim': fim.isoformat(),
         'vigente': inicio <= hoje <= fim
     }
-
-
-    
-def listar_cardapio_ru(self, campus='Gama', apenas_vigentes=True):
-
-    prefixo = f"{campus.casefold()}|"
-
-    with closing(conectar()) as conexao:
-        registros = conexao.execute('''
-            SELECT chave, valor, fonte
-            FROM dados_publicos
-            WHERE categoria = ?
-            AND chave LIKE ?
-            ORDER BY chave
-        ''', (
-            'cardapio_ru',
-            prefixo + '%'
-        )).fetchall()
-
-    hoje = datetime.now().astimezone().date()
-    cardapios = []
-
-    for registro in registros:
-        cardapio = json.loads(registro['valor'])
-
-        # Recalcula o período para não depender de dados antigos ou da data em que o sistema consultou a página.
-        periodo = interpretar_periodo_cardapio(
-            cardapio.get('titulo', ''),
-            hoje=hoje
-        )
-
-        cardapio.update(periodo)
-        cardapio['fonte'] = registro['fonte']
-        cardapios.append(cardapio)
-
-    if apenas_vigentes:
-        cardapios = [
-            cardapio for cardapio in cardapios
-            if cardapio['vigente']
-        ]
-
-    return sorted(
-        cardapios,
-        key=lambda cardapio: cardapio['data_inicio'] or '',
-        reverse=True
-    )
-
-    
-def extrair_texto_cardapio(url):
-    """Baixa um PDF oficial e extrai seu texto."""
-
-    requisicao = Request(
-        url,
-        headers={
-            'User-Agent': 'Mozilla/5.0 (compatible; SistemaFCTE/1.0)'
-        }
-    )
-
-    with urlopen(requisicao, timeout=90) as resposta:
-        conteudo = resposta.read()
-
-    leitor = PdfReader(BytesIO(conteudo))
-
-    paginas = []
-
-    for numero, pagina in enumerate(leitor.pages, start=1):
-        texto = pagina.extract_text()
-
-        if texto:
-            paginas.append({
-                'pagina': numero,
-                'texto': texto
-            })
-
-    return paginas

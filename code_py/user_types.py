@@ -8,13 +8,7 @@ cursos_disponiveis = (
     'Engenharia de Software'
 )
 
-areas_disponiveis = (
-    'Engenharia Aeroespacial',
-    'Engenharia Automotiva',
-    'Engenharia de Energia',
-    'Engenharia Eletrônica',
-    'Engenharia de Software'
-)
+areas_disponiveis = cursos_disponiveis      # As áreas dos docentes são os mesmos cursos.
 
 # ============================= { CLASSE DISCENTE } ============================= #
 
@@ -95,7 +89,7 @@ class Admin(User):
     def __init__(self, nome, email, senha, id_admin = None, senha_hash = None):
         super().__init__(
             None, None, nome, None, email, senha,
-            id_fixo=id_admin
+            id_fixo=id_admin, senha_hash=senha_hash
         )
 
     @property

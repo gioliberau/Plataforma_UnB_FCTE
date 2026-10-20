@@ -1,0 +1,12 @@
+# Configuração local do assistente de IA (não vai para o repositório)
+.claude/
+
+# Arquivos gerados pelo Python
+__pycache__/
+*.pyc
+
+# Banco local: guarda e-mails e hashes de senha; as tabelas são recriadas automaticamente
+code_py/sistema.db
+
+# Documento de contexto local (compartilhado com a dupla por fora do GitHub)
+CLAUDE.md

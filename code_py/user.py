@@ -6,6 +6,38 @@ from datetime import date
 
 from .seguranca import gerar_hash_senha
 
+# ============================= { SEMESTRE ATUAL } ============================= #
+
+def semestre_atual():
+    # Retorna (ano, semestre) de hoje. Usada na matrícula e nas consultas ao SIGAA.
+    hoje = date.today()
+
+    if hoje.month < 7:
+        return (hoje.year, 1)
+
+    return (hoje.year, 2)
+
+# ============================= { VALIDAÇÃO DE E-MAIL } ============================= #
+
+def validar_email(email):
+    # Usada pela classe User e pelo login (login.py).
+
+    if not isinstance(email, str):
+        raise ValueError('O e-mail deve ser um texto.')
+
+    parte_local, separador, dominio = email.strip().partition('@')
+
+    if not parte_local or not separador:
+        raise ValueError('E-mail inválido.')
+
+    if '.' not in dominio:
+        raise ValueError('E-mail inválido.')
+
+    if dominio.startswith('.') or dominio.endswith('.'):
+        raise ValueError('E-mail inválido.')
+
+    return email.strip()
+
 # ============================= { CLASSE USER } ============================= #
 
 class User(ABC):
@@ -102,16 +134,6 @@ class User(ABC):
     # === { ID } === #
 
     @staticmethod
-    def __get_semestre_atual():       # Obtêm o semestre atual para atualizar o os semestres permitidos/válidos
-        hoje = date.today()
-
-        if hoje.month < 7:
-            return (hoje.year, 1)
-
-        return (hoje.year, 2)
-
-
-    @staticmethod
     def __gerar_id(ano, semestre):      # Gera ID do Docente / Discente
 
         if type(ano) is not int:
@@ -125,7 +147,7 @@ class User(ABC):
             )
 
         semestre_min = (2008, 2)
-        semestre_max = User.__get_semestre_atual()
+        semestre_max = semestre_atual()
         entrada = (ano, semestre)
 
         if not semestre_min <= entrada <= semestre_max:
@@ -138,6 +160,11 @@ class User(ABC):
         resto = str(random.randint(0,999999)).zfill(6)      #gera um inteiro aleatório de 6 dígitos
 
         return ano + semestre + resto       # Gera um número de matrícula
+
+
+    def sortear_nova_matricula(self):
+        # Usado pelo banco quando a matrícula sorteada já existe.
+        self.__id_user = self.__gerar_id(self.__ano_entrada, self.__semestre_entrada)
 
 
     # === { CPF } === #
@@ -199,22 +226,7 @@ class User(ABC):
     # === { EMAIL } === #
     @staticmethod
     def __validar_email(email):
-
-        if not isinstance(email, str):
-            raise ValueError('O e-mail deve ser um texto.')
-            
-        parte_local, separador, dominio = email.strip().partition('@')
-
-        if not parte_local or not separador:
-            raise ValueError('E-mail inválido.')
-
-        if '.' not in dominio:
-            raise ValueError('E-mail inválido.')
-
-        if dominio.startswith('.') or dominio.endswith('.'):
-            raise ValueError('E-mail inválido.')
-
-        return email.strip()
+        return validar_email(email)
 
 
     # === { NOME } === #

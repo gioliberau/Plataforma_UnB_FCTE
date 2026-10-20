@@ -5,6 +5,9 @@ import secrets
 
 iteracoes = 600_000
 
+# Letras e dígitos sem caracteres ambíguos (0/O, 1/l/I), para facilitar o repasse da senha.
+caracteres_senha = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
 #============================= { SEGURANÇA } =============================#
 
 def gerar_hash_senha(senha):
@@ -61,3 +64,11 @@ def verificar_senha(senha_digitada, hash_armazenado):
 
     except (ValueError, TypeError):
         return False
+
+
+def gerar_senha_aleatoria(tamanho=10):
+# Gera uma senha inicial aleatória para ser repassada pelo admin.
+    if type(tamanho) is not int or tamanho < 8:
+        raise ValueError('A senha gerada deve ter pelo menos 8 caracteres.')
+
+    return ''.join(secrets.choice(caracteres_senha) for _ in range(tamanho))

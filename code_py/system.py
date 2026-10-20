@@ -5,7 +5,8 @@ import json
 from .banco import conectar
 from .sigaa import buscar_turmas_publicas
 from .ru import buscar_cardapios_publicos, interpretar_periodo_cardapio
-from .cardapio import atualizar_cardapio
+from .user import semestre_atual
+from .user_types import cursos_disponiveis
 
 # ============================= { SISTEMA FCTE } ============================= #
 
@@ -30,20 +31,13 @@ class SistemaFCTE:
         self.__carregar_cursos_iniciais()
 
 
-    def atualizar_turmas_sigaa(self, ano=2026, semestre=2):
+    def atualizar_turmas_sigaa(self, ano=None, semestre=None):
+        if ano is None or semestre is None:
+            ano, semestre = semestre_atual()
+
         turmas = buscar_turmas_publicas(ano, semestre)
 
         with closing(conectar()) as conexao:
-            conexao.execute('''
-                CREATE TABLE IF NOT EXISTS dados_publicos (
-                    categoria TEXT NOT NULL,
-                    chave TEXT NOT NULL,
-                    valor TEXT NOT NULL,
-                    fonte TEXT NOT NULL,
-                    PRIMARY KEY (categoria, chave)
-                )
-            ''')
-
             with conexao:
                 for turma in turmas:
                     chave = (
@@ -69,7 +63,10 @@ class SistemaFCTE:
 
         return len(turmas)
 
-    def listar_turmas_sigaa(self, ano=2026, semestre=2):
+    def listar_turmas_sigaa(self, ano=None, semestre=None):
+        if ano is None or semestre is None:
+            ano, semestre = semestre_atual()
+
         periodo = f'{ano}.{semestre}'
 
         with closing(conectar()) as conexao:
@@ -107,16 +104,8 @@ class SistemaFCTE:
 
 
     def __carregar_cursos_iniciais(self):
-        cursos = [
-            'Engenharia Automotiva',
-            'Engenharia Aeroespacial',
-            'Engenharia Eletrônica',
-            'Engenharia de Energia',
-            'Engenharia de Software'
-        ]
-
         with closing(conectar()) as conexao:
-            for curso in cursos:
+            for curso in cursos_disponiveis:
                 conexao.execute('''
                     INSERT OR IGNORE INTO dados_publicos
                     (categoria, chave, valor, fonte)
@@ -153,11 +142,11 @@ class SistemaFCTE:
             'calendario': self.url_calendario,
             'sigaa': self.url_sigaa,
             'turmas': self.url_turmas,
-            'docentes': ('https://sigaa.unb.br/sigaa/public/docente/busca_docentes.jsf'),
-            'ru_cardapio': 'https://ru.unb.br/cardapio-refeitorio/',
-            'ru_valores': 'https://ru.unb.br/precos-e-grupos/',
-            'biblioteca_fcte': 'https://fcte.unb.br/contato/',
-            'catalogo_biblioteca': 'https://bce.unb.br/'
+            'docentes': self.url_docentes,
+            'ru_cardapio': self.url_ru_cardapio,
+            'ru_valores': self.url_ru_valores,
+            'biblioteca_fcte': self.url_biblioteca,
+            'catalogo_biblioteca': self.url_catalogo_biblioteca
         }
 
 

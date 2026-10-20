@@ -1,6 +1,7 @@
-from .banco import autenticar_usuario
+from getpass import getpass     # Lê a senha no terminal sem exibi-la.
+
+from .login import autenticar, trocar_senha, gerar_acesso, tipos_usuario
 from .session import Sessao
-from .banco import cadastrar_usuario
 
 
 # ============================= { INTERFACE DO SISTEMA } ============================= #
@@ -15,19 +16,15 @@ class InterfaceFCTE:
         while True:
             print('\n===== PORTAL DISCENTE - UNB FCTE =====')
             print('1 - Fazer login')
-            print('2 - Criar conta')
-            print('3 - Acessar portal público')
+            print('2 - Acessar portal público')
             print('3 - Sair')
 
             opcao = input('Escolha uma opção: ').strip()
 
             if opcao == '1':
                 self.__fazer_login()
-            
+
             elif opcao == '2':
-                self.__criar_conta()
-            
-            elif opcao == '3':
                 self.__portal_publico()
 
             elif opcao == '3':
@@ -42,94 +39,63 @@ class InterfaceFCTE:
 
         # Solicita as credenciais do usuário.
         email = input('E-mail: ').strip()
-        senha = input('Senha: ')
+        senha = getpass('Senha: ')
 
         # Verifica as credenciais no banco de dados.
-        usuario = autenticar_usuario(email, senha)
+        conta = autenticar(email, senha)
 
-        if usuario is None:
+        if conta is None:
             print('E-mail ou senha incorretos.')
             return
 
-        # Inicia a sessão com o usuário autenticado.
-        self.__sessao.iniciar(usuario)
+        # No primeiro acesso, a senha inicial (gerada pelo admin) precisa ser trocada.
+        if conta.precisa_trocar_senha:
+            conta = self.__trocar_senha_inicial(email, senha)
 
-        print(f'\nBem-vindo(a), {usuario.nome}!')
+            if conta is None:
+                return
+
+        # Inicia a sessão com o usuário autenticado.
+        self.__sessao.iniciar(conta)
+
+        print(f'\nBem-vindo(a), {conta.email}!')
 
         # Direciona o usuário para o menu correspondente ao seu tipo.
         self.__abrir_menu_usuario()
 
 
-    def __criar_conta(self):
-        print('\n===== CRIAR CONTA =====')
-        print('1 - Discente')
-        print('2 - Docente')
+    def __trocar_senha_inicial(self, email, senha_atual):
+        print('\nPrimeiro acesso: escolha uma nova senha (mínimo 8 caracteres).')
 
-        tipo = input('Tipo de usuário: ').strip()
+        nova_senha = getpass('Nova senha: ')
 
-        if tipo not in ('1', '2'):
-            print('Tipo de usuário inválido.')
-            return
-
-        nome = input('Nome completo: ').strip()
-        cpf = input('CPF: ').strip()
-        email = input('E-mail: ').strip()
-        senha = input('Senha: ')
-
-        if not nome or not cpf or not email or not senha:
-            print('Todos os campos são obrigatórios.')
-            return
+        if nova_senha != getpass('Confirme a nova senha: '):
+            print('As senhas não conferem.')
+            return None
 
         try:
-            ano = int(input('Ano de entrada: '))
-            semestre = int(input('Semestre de entrada (1 ou 2): '))
-
-            if tipo == '1':
-                curso = input('Curso: ').strip()
-
-                if not curso:
-                    print('O curso é obrigatório.')
-                    return
-
-                usuario = Discente(
-                    ano,
-                    semestre,
-                    nome,
-                    cpf,
-                    email,
-                    senha,
-                    curso
-                )
-
-            else:
-                area = input('Área de atuação: ').strip()
-
-                if not area:
-                    print('A área de atuação é obrigatória.')
-                    return
-
-                usuario = Docente(
-                    ano,
-                    semestre,
-                    nome,
-                    cpf,
-                    email,
-                    senha,
-                    area
-                )
-
-            cadastrar_usuario(usuario)
-
-            print('\nConta criada com sucesso!')
-            print(f'Identificador: {usuario.id_user}')
-            print('Agora você já pode fazer login.')
-
+            conta = trocar_senha(email, senha_atual, nova_senha)
         except ValueError as erro:
-            print(f'Não foi possível criar a conta: {erro}')
+            print(f'Não foi possível trocar a senha: {erro}')
+            return None
 
-        except sqlite3.IntegrityError:
-            print('Não foi possível criar a conta.')
-            print('O e-mail, CPF ou identificador já está cadastrado.')
+        print('Senha alterada com sucesso!')
+        return conta
+
+
+    def __gerar_acesso(self):
+        # Admin libera um e-mail e recebe a senha inicial para repassar.
+        email = input('E-mail do usuário: ').strip()
+        tipo = input(f'Tipo ({"/".join(tipos_usuario)}): ').strip().lower()
+
+        try:
+            senha_inicial = gerar_acesso(self.__sessao.usuario, email, tipo)
+        except (ValueError, PermissionError) as erro:
+            print(f'Não foi possível gerar o acesso: {erro}')
+            return
+
+        print(f'Acesso criado. Senha inicial de {email}: {senha_inicial}')
+        print('Repasse esta senha ao usuário; ela não será exibida novamente.')
 
 
     def __portal_publico(self):
@@ -156,18 +122,28 @@ class InterfaceFCTE:
 
 
     def __abrir_menu_usuario(self):
-        usuario = self.__sessao.usuario
-
-        print('\n===== MENU DO USUÁRIO =====')
-        print(f'Nome: {usuario.nome}')
-        print(f'Tipo: {usuario.tipo_usuario}')
-        print('0 - Sair da conta')
+        conta = self.__sessao.usuario
 
         while self.__sessao.autenticada:
+            print('\n===== MENU DO USUÁRIO =====')
+            print(f'E-mail: {conta.email}')
+            print(f'Tipo: {conta.tipo_usuario}')
+
+            if conta.eh_admin:
+                print('1 - Gerar acesso para um e-mail')
+
+            print('0 - Sair da conta')
+
             opcao = input('Escolha uma opção: ').strip()
 
             if opcao == '0':
                 self.__sessao.encerrar()
                 print('Logout realizado com sucesso!')
+            elif opcao == '1' and conta.eh_admin:
+                self.__gerar_acesso()
             else:
                 print('Opção inválida. Tente novamente.')
+
+
+if __name__ == '__main__':
+    InterfaceFCTE().executar()

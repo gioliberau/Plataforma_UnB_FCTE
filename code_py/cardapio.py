@@ -2,19 +2,21 @@ import json
 import re
 import sys
 from collections import defaultdict
-from html.parser import HTMLParser
 from io import BytesIO
+from pathlib import Path
 from datetime import datetime
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 import pdfplumber
 
+from .ru import AnalisadorLinks
+
 
 # ============================= { CONFIGURAÇÕES } ============================= #
 
 PAGINA_CARDAPIO = "https://ru.unb.br/cardapio-gama/"
-ARQUIVO_SAIDA = "cardapio_extraido.json"
+ARQUIVO_SAIDA = Path(__file__).resolve().parent / "cardapio_extraido.json"
 
 REFEICOES = {
     0: "cafe_da_manha",
@@ -117,40 +119,6 @@ def baixar_conteudo(url):
         return resposta.read()
 
 
-class AnalisadorLinks(HTMLParser):
-    # Extrai links de uma página HTML.
-
-    def __init__(self):
-        super().__init__()
-        self.links = []
-        self.link_atual = None
-
-    def handle_starttag(self, tag, attrs):
-        if tag.lower() != "a":
-            return
-
-        atributos = dict(attrs)
-        href = atributos.get("href")
-
-        if href:
-            self.link_atual = {
-                "url": href.strip(),
-                "texto": "",
-            }
-
-    def handle_data(self, data):
-        if self.link_atual is not None:
-            self.link_atual["texto"] += data
-
-    def handle_endtag(self, tag):
-        if tag.lower() == "a" and self.link_atual is not None:
-            self.link_atual["texto"] = normalizar(
-                self.link_atual["texto"]
-            )
-            self.links.append(self.link_atual)
-            self.link_atual = None
-
-
 def encontrar_pdf_cardapio():
     # Encontra o PDF do cardápio de Gama na página oficial.
     html = baixar_conteudo(PAGINA_CARDAPIO).decode(
@@ -164,8 +132,8 @@ def encontrar_pdf_cardapio():
     candidatos = []
 
     for link in analisador.links:
-        url = link["url"]
-        texto = link["texto"]
+        url = link["url"].strip()
+        texto = normalizar(link["texto"])
         referencia = f"{url} {texto}".lower()
 
         if ".pdf" not in url.lower():
@@ -615,7 +583,7 @@ def extrair_cardapio(conteudo_pdf):
 def atualizar_cardapio():
     #Baixa, extrai e salva o cardápio atualizado.
     url_pdf = encontrar_pdf_cardapio()
-    registros = extrair_cardapio(url_pdf)
+    registros = extrair_cardapio(baixar_conteudo(url_pdf))
 
     if len(registros) != 15:
         raise ValueError(
