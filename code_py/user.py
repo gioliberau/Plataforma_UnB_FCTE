@@ -1,10 +1,17 @@
 from abc import ABC, abstractmethod
 import random
 from datetime import date
-
 # ----------------------------------------------- #
 
-from .seguranca import gerar_hash_senha
+cursos_disponiveis = (
+    'Engenharia Aeroespacial',
+    'Engenharia Automotiva',
+    'Engenharia de Energia',
+    'Engenharia Eletrônica',
+    'Engenharia de Software',
+)
+
+areas_disponiveis = cursos_disponiveis # As áreas dos docentes são os mesmos cursos
 
 # ============================= { SEMESTRE ATUAL } ============================= #
 
@@ -38,25 +45,47 @@ def validar_email(email):
 
     return email.strip()
 
+
+# ============================= { VALIDAÇÃO DE CPF / FORMATAÇÃO } ============================= #
+
+def _cpf_valido(cpf):
+
+    if cpf == cpf[0] * 11:
+        return False
+
+    for tamanho in (9, 10):
+        soma = sum(int(cpf[i]) * (tamamho + 1 - i) for i in range(tamanho))
+        digito = 0 if soma % 11 < 2 else 11 - soma % 11
+
+    if digito != int(cpf[tamanho]):
+        return False
+    
+    return True
+
+def _formatar_cpf(cpf):
+    cpf = str(cpf)
+
+    if len(cpf) != 11 or not cpf.isdigit():
+        raise ValueError(
+            'CPF inválido: O CPF deve conter exatamente 11 dígitos.'
+        )
+
+    if not User.__validar_cpf(cpf):         # chama o método __validar_cpf
+        raise ValueError('CPF inválido.')
+
+    return f'{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}'
+
+
+
 # ============================= { CLASSE USER } ============================= #
 
 class User(ABC):
-    def __init__(self, ano_entrada, semestre_entrada, nome, cpf, email, senha=None, id_fixo=None, senha_hash=None):
+    def __init__(self, ano_entrada, semestre_entrada, nome, cpf, email, id_fixo=None):
 
         self.__ano_entrada = ano_entrada
         self.__semestre_entrada = semestre_entrada
 
-        if senha_hash is not None:
-            if not isinstance(senha_hash, str) or not senha_hash:
-                raise ValueError('Hash de senha inválido.')
-
-            self.__senha = None
-            self.__hash_senha = senha_hash
-        else:
-            self.__senha = self.__validar_senha(senha)
-            self.__hash_senha = None
-
-
+       
         if id_fixo is not None:
             if not isinstance(id_fixo, str) or not id_fixo:
                 raise ValueError('O ID deve ser um texto não vazio.')
@@ -64,9 +93,7 @@ class User(ABC):
             self.__id_user = id_fixo
 
         elif ano_entrada is not None and semestre_entrada is not None:
-            self.__id_user = self.__gerar_id(
-                ano_entrada, semestre_entrada
-            )
+            self.__id_user = self.__gerar_id(ano_entrada, semestre_entrada)
 
         else:
             raise ValueError(
@@ -75,19 +102,25 @@ class User(ABC):
             )
 
         # Valida o CPF quando ele for informado.
-        if cpf is None:
-            self.__cpf = None
-        else:
-            self.__cpf = self.__formatar_cpf(cpf)
+        self.__cpf = None if cpf is None else self.__cpf = self._formatar_cpf(cpf)
 
-        self._email = self.__validar_email(email)
-        self._nome = self.__validar_nome(nome)
+        self.__email = validar_email(email)
+
+        if not isinstance(nome, str) or not nome.strip():
+                raise ValueError('O nome não pode estar vazio.')
+
+        self.__nome = nome.strip()
 
     # ========== { Tipo de usuário } ========== #
 
     @property
     @abstractmethod
     def tipo_usuario(self):
+        pass
+
+    @property
+    @abstractmethod
+    def curso_ou_area(self):
         pass
     
     # ========== { Getters } ========== #
@@ -110,25 +143,11 @@ class User(ABC):
 
     @property
     def email(self):
-        return self._email
+        return self.__email
 
     @property
     def nome(self):
-        return self._nome
-
-    # ======================== { método estáticos } ======================== #
-
-
-    # === { SENHA } === #
-    @staticmethod
-    def __validar_senha(senha):
-        if not isinstance(senha, str) or not senha.strip():
-            raise ValueError('A senha não pode estar vazia.')
-
-        if len(senha) < 8:
-            raise ValueError('A senha deve ter pelo menos 8 caracteres.')
-
-        return senha       # A senha não é alterada (espaços podem fazer parte da senha válida)
+        return self.__nome
 
 
     # === { ID } === #
@@ -137,20 +156,12 @@ class User(ABC):
     def __gerar_id(ano, semestre):      # Gera ID do Docente / Discente
 
         if type(ano) is not int:
-            raise ValueError(
-                'O ano deve ser um número inteiro.'
-            )
+            raise ValueError('O ano deve ser um número inteiro.')
 
         if semestre not in (1,2):
-            raise ValueError (
-                'O semestre deve ser 1 ou 2.'
-            )
+            raise ValueError ('O semestre deve ser 1 ou 2.')
 
-        semestre_min = (2008, 2)
-        semestre_max = semestre_atual()
-        entrada = (ano, semestre)
-
-        if not semestre_min <= entrada <= semestre_max:
+        if not (2008,8) <= entrada <= semestre_atual():
             raise ValueError(
                 'Período de entrada inválido.'
             )
@@ -167,83 +178,73 @@ class User(ABC):
         self.__id_user = self.__gerar_id(self.__ano_entrada, self.__semestre_entrada)
 
 
-    # === { CPF } === #
-    @staticmethod
-    def __validar_cpf(cpf):
 
-        if cpf == cpf[0] * 11:
-            return False
+# ============================= { CLASSE DICENTE } ============================= #
+
+class Discente(User):
+    def __init__(self, ano_entrada, semestre_entrada, nome, cpf, email, curso, id_fixo=None):
         
-        # == { 1º digito verificador } == #
-        soma = 0
+        super().__init__(ano_entrada, semestre_entrada, nome, cpf, email, id_fixo=id_fixo)
 
-        for i in range(9):
-            soma += int(cpf[i]) * (10 - i)
+        self.__curso = None
 
-        resto = soma % 11
+        self.curso = curso
 
-        if resto < 2:
-            digito1 = 0
-        else:
-            digito1 = 11 - resto
+        @property
+        def tipo_usuario(self):
+            return 'discente'
 
-        # == { 2º digito verificador } == #
-        soma = 0
+        @property
+        def curso(self):
+            return self.__curso
 
-        for i in range(10):
-            if i < 9:
-                numero = int(cpf[i])
-            else:
-                numero = digito1
+        @property
+        def curso_ou_area(self):
+            return self.__curso
 
-            soma += numero * (11 - i)
+        @curso.setter
+        def curso(self, v_curso):
+            if not isinstance(v_curso, str) or not v_curso.strip():
+                raise ValueError('A área deve ser informada.')
 
-        resto = soma % 11
+            v_curso = v_curso.strip()
 
-        if resto < 2:
-            digito2 = 0
-        else:
-            digito2 = 11 - resto
+            if v_curso not in cursos_disponiveis
+                raise ValueError('Área acadêmica indisponível.')
 
-        return (digito1 == int(cpf[9]) and digito2 == int(cpf[10]))
+            self.__curso = v_curso
 
 
-    @staticmethod
-    def __formatar_cpf(cpf):
-        cpf = str(cpf)
+# ============================= { CLASSE DOCENTE } ============================= #
 
-        if len(cpf) != 11 or not cpf.isdigit():
-            raise ValueError(
-                'CPF inválido: O CPF deve conter exatamente 11 dígitos.'
-            )
+class Docente(User):
+    def __init__(self, ano_entrada, semestre_entrada, nome, cpf, email, area, id_fixo=None):
+        
+        super().__init__(ano_entrada, semestre_entrada, nome, cpf, email, id_fixo=id_fixo)
+        
+        self.__area = None
+        self.area = area
 
-        if not User.__validar_cpf(cpf):         # chama o método __validar_cpf
-            raise ValueError('CPF inválido.')
+        @property
+        def tipo_usuario(self):
+            return 'docente'
 
-        return f'{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}'
+        @property
+        def area(self):
+            return self.__area
 
+        @property
+        def curso_ou_area(self):
+            return self.__area
 
-    # === { EMAIL } === #
-    @staticmethod
-    def __validar_email(email):
-        return validar_email(email)
+        @area.setter
+        def area(self, v_area):
+            if not isinstance(v_area, str) or not v_area.strip():
+                raise ValueError('A área deve ser informada.')
 
+            v_area = v_area.strip()
 
-    # === { NOME } === #
-    @staticmethod
-    def __validar_nome(nome):
-        if not isinstance(nome, str) or not nome.strip():
-            raise ValueError('O nome não pode estar vazio.')
+            if v_area not in areas_disponiveis
+                raise ValueError('Área acadêmica indisponível.')
 
-        return nome.strip()
-
-
-    def get_hash_senha(self):
-        if self.__hash_senha is not None:
-            return self.__hash_senha
-
-        # Gera o hash na primeira utilização.
-        self.__hash_senha = gerar_hash_senha(self.__senha)
-        self.__senha = None
-
-        return self.__hash_senha
+            self.__area = v_area

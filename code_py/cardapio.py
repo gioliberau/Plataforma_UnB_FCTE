@@ -1,37 +1,36 @@
 import json
 import re
-import sys
 from collections import defaultdict
+from datetime import date, datetime
+from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
-from datetime import datetime
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
-import pdfplumber
 
-from .ru import AnalisadorLinks
+from .login import exigir_admin
 
 
 # ============================= { CONFIGURAÇÕES } ============================= #
 
-PAGINA_CARDAPIO = "https://ru.unb.br/cardapio-gama/"
-ARQUIVO_SAIDA = Path(__file__).resolve().parent / "cardapio_extraido.json"
+pag_cardapio = "https://ru.unb.br/cardapio-gama/"
+arquivo_saida = Path(__file__).resolve().parent / "cardapio_extraido.json"
 
-REFEICOES = {
+refeicao_da_pagina = {
     0: "cafe_da_manha",
     1: "almoco",
     2: "jantar",
 }
 
-MOSTRAR_DIAGNOSTICO = False
+mostrar_diagnostico = False
 
 # Categorias que, no PDF, ocupam a linha inteira (células mescladas) e valem para todos os dias. Chave: número da página.
-CATEGORIAS_TODOS_OS_DIAS = {
+categorias_todos_os_dias = {
     0: {"bebidas", "gordura"},
 }
 
-COLUNAS = [
+colunas = [
     (145, 285),
     (285, 420),
     (420, 560),
@@ -39,7 +38,7 @@ COLUNAS = [
     (690, 835),
 ]
 
-FAIXAS = {
+faixas = {
     0: [
         (115, 170, "bebidas"),
         (170, 250, "panificacao"),
@@ -76,6 +75,32 @@ FAIXAS = {
         (460, 490, "bebida"),
     ],
 }
+
+# ============================= { LEITURA DE LINKS DA PÁGINA } ============================= #
+ 
+class AnalisadorLinks(HTMLParser):
+ 
+    def __init__(self):
+        super().__init__()
+        self.links = []
+        self.link_atual = None
+ 
+    def handle_starttag(self, tag, attrs):
+        if tag == 'a':
+            href = dict(attrs).get('href')
+ 
+            if href:
+                self.link_atual = {'texto': [], 'url': href}
+ 
+    def handle_data(self, data):
+        if self.link_atual is not None:
+            self.link_atual['texto'].append(data.strip())
+ 
+    def handle_endtag(self, tag):
+        if tag == 'a' and self.link_atual is not None:
+            texto = ' '.join(parte for parte in self.link_atual['texto'] if parte).strip()
+            self.links.append({'texto': texto, 'url': self.link_atual['url']})
+            self.link_atual = None
 
 
 # ============================= { FUNÇÕES AUXILIARES } ============================= #
@@ -121,7 +146,7 @@ def baixar_conteudo(url):
 
 def encontrar_pdf_cardapio():
     # Encontra o PDF do cardápio de Gama na página oficial.
-    html = baixar_conteudo(PAGINA_CARDAPIO).decode(
+    html = baixar_conteudo(pag_cardapio).decode(
         "utf-8",
         errors="replace",
     )
@@ -158,7 +183,7 @@ def encontrar_pdf_cardapio():
             except ValueError:
                 pass
 
-        url_completa = urljoin(PAGINA_CARDAPIO, url)
+        url_completa = urljoin(pag_cardapio, url)
 
         candidatos.append(
             (data_inicio, url_completa, texto)
@@ -181,7 +206,7 @@ def encontrar_pdf_cardapio():
 
 def categoria_por_altura(numero_pagina, altura):
     # Retorna a categoria conforme a posição vertical.
-    for inicio, fim, categoria in FAIXAS.get(numero_pagina, []):
+    for inicio, fim, categoria in faixas.get(numero_pagina, []):
         if inicio <= altura < fim:
             return categoria
 
@@ -190,7 +215,7 @@ def categoria_por_altura(numero_pagina, altura):
 
 def coluna_por_posicao(x):
     # Retorna a coluna do dia conforme a posição horizontal.
-    for indice, (inicio, fim) in enumerate(COLUNAS):
+    for indice, (inicio, fim) in enumerate(colunas):
         if inicio <= x < fim:
             return indice
 
@@ -230,13 +255,13 @@ def extrair_datas(pagina):
         if data_iso not in encontradas:
             encontradas.append(data_iso)
 
-    if len(encontradas) < len(COLUNAS):
+    if len(encontradas) < len(colunas):
         raise ValueError(
             f"Encontrei {len(encontradas)} datas no cabeçalho; "
-            f"eram esperadas {len(COLUNAS)}."
+            f"eram esperadas {len(colunas)}."
         )
 
-    return encontradas[: len(COLUNAS)]
+    return encontradas[: len(colunas)]
 
 
 # ============================= { AGRUPAMENTO DE TEXTO } ============================= #
@@ -426,7 +451,7 @@ def extrair_pagina(pagina, numero_pagina):
         keep_blank_chars=False,
     )
 
-    comuns = CATEGORIAS_TODOS_OS_DIAS.get(numero_pagina, set())
+    comuns = categorias_todos_os_dias.get(numero_pagina, set())
 
     grupos = defaultdict(list)
     grupos_comuns = defaultdict(list)
@@ -514,7 +539,7 @@ def extrair_cardapio(conteudo_pdf):
                 "Eram esperadas pelo menos 3."
             )
 
-        if MOSTRAR_DIAGNOSTICO:
+        if mostrar_diagnostico:
             for numero_pagina in range(3):
                 diagnosticar_pagina(
                     pdf.pages[numero_pagina],
@@ -540,12 +565,12 @@ def extrair_cardapio(conteudo_pdf):
                 numero_pagina,
             )
 
-            refeicao = REFEICOES[numero_pagina]
+            refeicao = refeicoes[numero_pagina]
 
             # Ordem das categorias conforme aparecem no PDF.
             ordem = [
                 categoria
-                for _, _, categoria in FAIXAS[numero_pagina]
+                for _, _, categoria in faixas[numero_pagina]
             ]
 
             for coluna, data in enumerate(datas):
@@ -577,6 +602,132 @@ def extrair_cardapio(conteudo_pdf):
 
     return registros
 
+# ============================= { CONSULTA AO CARDÁPIO (era consultas_publicas.py) } ============================= #
+ 
+refeicoes = {
+    'cafe_da_manha': 'Café da manhã',
+    'almoco': 'Almoço',
+    'jantar': 'Jantar',
+}
+ 
+dietas = {
+    'padrao': 'Padrão',
+    'ovolactovegetariano': 'Ovolactovegetariano',
+    'vegetariano_estrito': 'Vegetariano estrito',
+    'todas': 'Todas as opções',
+}
+ 
+dias_semana = (
+    'segunda-feira', 'terça-feira', 'quarta-feira',
+    'quinta-feira', 'sexta-feira', 'sábado', 'domingo'
+)
+ 
+# Nome amigável de cada categoria do cardápio.
+rotulos = {
+    'bebidas': 'Bebidas',
+    'panificacao': 'Pães',
+    'opcao_extra': 'Opção extra',
+    'gordura': 'Para o pão',
+    'complemento': 'Complemento',
+    'fruta': 'Fruta',
+    'salada_1': 'Salada 1',
+    'salada_2': 'Salada 2',
+    'molho_para_salada': 'Molho',
+    'prato_principal': 'Prato principal',
+    'guarnicao': 'Guarnição',
+    'acompanhamentos': 'Acompanhamentos',
+    'sopa': 'Sopa',
+    'torrada': 'Torrada',
+    'sobremesa': 'Sobremesa',
+    'bebida': 'Bebida',
+}
+ 
+# Categorias que têm uma versão por tipo de dieta (ex.: prato_principal_padrao).
+prefixos_com_dieta = ('complemento_', 'prato_principal_')
+ 
+ 
+def nome_dia_semana(data_iso):
+    return dias_semana[date.fromisoformat(data_iso).weekday()]
+ 
+ 
+def carregar_cardapio():
+    # Lê o JSON gerado por atualizar_cardapio(). Lista vazia se ele ainda não existe.
+    if not arquivo_saida.exists():
+        return []
+ 
+    try:
+        with open(arquivo_saida, encoding='utf-8') as arquivo:
+            registros = json.load(arquivo)
+    except (OSError, json.JSONDecodeError):
+        raise RuntimeError('O arquivo do cardápio está ilegível. Peça ao admin para atualizá-lo.')
+ 
+    if not isinstance(registros, list):
+        raise RuntimeError('O arquivo do cardápio está num formato inesperado.')
+ 
+    return registros
+ 
+ 
+def datas_disponiveis():
+    return sorted({r['data'] for r in carregar_cardapio() if 'data' in r})
+ 
+ 
+def cardapio_do_dia(data_iso):
+    # Devolve {refeicao: itens} na ordem café, almoço, jantar. Vazio se não houver o dia.
+    por_refeicao = {
+        r['refeicao']: r.get('itens', {})
+        for r in carregar_cardapio()
+        if r.get('data') == data_iso
+    }
+ 
+    return {chave: por_refeicao[chave] for chave in refeicoes if chave in por_refeicao}
+ 
+ 
+def _separar_variante(categoria):
+    # 'prato_principal_padrao' -> ('prato_principal', 'padrao'); sem variante -> (categoria, None)
+    for prefixo in prefixos_com_dieta:
+        if categoria.startswith(prefixo):
+            variante = categoria[len(prefixo):]
+ 
+            if variante in dietas:
+                return prefixo.rstrip('_'), variante
+ 
+    return categoria, None
+ 
+ 
+def formatar_refeicao(itens, dieta='padrao'):
+    # Lista de (rótulo, texto) já filtrada pela preferência alimentar escolhida.
+    if dieta not in dietas:
+        raise ValueError('Preferência alimentar inválida.')
+ 
+    linhas = []
+ 
+    for categoria, lista in itens.items():
+        base, variante = _separar_variante(categoria)
+ 
+        if variante and dieta != 'todas' and variante != dieta:
+            continue
+ 
+        rotulo = rotulos.get(base, base.replace('_', ' ').capitalize())
+ 
+        if variante and dieta == 'todas':
+            rotulo += f' ({dietas[variante]})'
+ 
+        linhas.append((rotulo, '; '.join(lista)))
+ 
+    return linhas
+ 
+ 
+def atualizar_cardapio_ru(conta):
+    # Baixa o PDF do RU e regrava o JSON. Só admin.
+    exigir_admin(conta)
+ 
+    try:
+        registros = atualizar_cardapio()
+    except (OSError, ValueError, RuntimeError) as erro:
+        raise RuntimeError(f'Não foi possível atualizar o cardápio: {erro}')
+ 
+    return len(registros)
+
 
 # ============================= { EXECUÇÃO } ============================= #
 
@@ -590,10 +741,10 @@ def atualizar_cardapio():
             f"Esperados 15 registros, mas foram gerados {len(registros)}."
         )
 
-    with open(ARQUIVO_SAIDA, "w", encoding="utf-8") as arquivo:
+    with open(arquivo_saida, "w", encoding="utf-8") as arquivo:
         json.dump(registros, arquivo, ensure_ascii=False, indent=4)
 
-    print(f"Cardápio atualizado em: {ARQUIVO_SAIDA}")
+    print(f"Cardápio atualizado em: {arquivo_saida}")
     return registros
 
 

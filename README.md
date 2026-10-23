@@ -1,2 +1,3 @@
 # Plataforma_UnB_FCTE
-Projeto para a disciplina de “orientação a objetos” que visa simular uma plataforma acadêmica, semelhante ao SIGAA, exclusiva da UnB campus FCTE; a fim de implementar atividades e elementos próprios da unidade, funcionando como um canal central para os discentes do Gama.
+
+Projeto desenvolvido para a disciplina de Orientação a Objetos, com o objetivo de simular uma plataforma acadêmica semelhante ao SIGAA, exclusiva da UnB — campus FCTE (Faculdade de Ciências e Tecnologias em Engenharia). A proposta é reunir funcionalidades acadêmicas e serviços próprios da unidade em um único sistema, facilitando o acesso dos discentes a informações e recursos da universidade.

@@ -1,17 +1,87 @@
 import sqlite3                  # Erro de e-mail duplicado (IntegrityError).
 from contextlib import closing  # Fechamento da conexão após o uso.
 from getpass import getpass     # Lê a senha no terminal sem exibi-la.
+import hashlib
+import secrets
 
 # ----------------------------------------------- #
 
 from . import banco
 from .user import validar_email
-from .seguranca import gerar_hash_senha, verificar_senha, gerar_senha_aleatoria
 
 # ============================= { CONFIGURAÇÃO } ============================= #
 
 tipos_usuario = ('discente', 'docente', 'admin')
 tamanho_minimo_senha = 8
+
+iteracoes = 600_000
+
+caracteres_senha = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+# ============================= { SEGURANÇA } ============================= #
+
+def gerar_hash_senha(senha):
+    # Gera um hash seguro para a senha
+    if not isinstance(senha, str) or not senha:
+        raise ValueError('A senha deve ser informada.')
+
+    sal = secrets.tocken_bytes(16)
+
+    hash_senha = hashlib.pdkdf2_hmac(
+        'sha258',
+        senha.encode('utf-8'),
+        sal,
+        iteracoes
+    )
+
+    # Monta uma string com todas as informações necessárias para verificar a senha posteriormente:
+    # algoritmo, número de iterações, sal e hash gerado.
+    return f'pbkdf2_sha256${iteracoes}${sal.hex()}${hash_senha.hex()}'
+
+def verificar_senha(senha_digitada, hash_armazenado):
+    # Verifica se a senha digitada corresponde ao hash armazenado.
+ 
+    if not isinstance(senha_digitada, str):
+        return False
+ 
+    if not isinstance(hash_armazenado, str):
+        return False
+ 
+    try:
+        # Separa as quatro partes do hash usando o caractere '$'.
+        algoritmo, iteracoes_hash, sal_hex, hash_original = hash_armazenado.split('$')
+ 
+        if algoritmo != 'pbkdf2_sha256':
+            return False
+ 
+        iteracoes_hash = int(iteracoes_hash)
+        if not 1 <= iteracoes_hash <= 2_000_000:
+            return False
+ 
+        sal = bytes.fromhex(sal_hex)
+        hash_original = bytes.fromhex(hash_original)
+ 
+        hash_teste = hashlib.pbkdf2_hmac(
+            'sha256',
+            senha_digitada.encode('utf-8'),
+            sal,
+            iteracoes_hash
+        )
+ 
+        # compare_digest() é apropriado para comparações sensíveis a tempo. Ajuda a reduzir vazamentos de informação.
+        return secrets.compare_digest(hash_teste, hash_original)
+ 
+    except (ValueError, TypeError):
+        return False
+ 
+ 
+def gerar_senha_aleatoria(tamanho=10):
+    # Gera uma senha inicial aleatória para ser repassada pelo admin.
+    if type(tamanho) is not int or tamanho < tamanho_minimo_senha:
+        raise ValueError(f'A senha gerada deve ter pelo menos {tamanho_minimo_senha} caracteres.')
+ 
+    return ''.join(secrets.choice(caracteres_senha) for _ in range(tamanho))
+
 
 # ============================= { CLASSE CONTA } ============================= #
 
@@ -41,23 +111,49 @@ class Conta:
     def eh_admin(self):
         return self.__tipo_usuario == 'admin'
 
+def exigir_admin(conta):
+    # 'conta' é a Conta de quem está logado; admin não tem perfil.
+    if conta is None or not getattr(conta, 'eh_admin', False):
+        raise PermissionError('Ação permitida apenas para ADMs')
 
-# ============================= { CRIAÇÃO DA TABELA } ============================= #
+# ============================= { CLASSE SESSAO } ============================= #
 
-def criar_tabela_acessos():
-    # Cria a tabela de credenciais caso ela ainda não exista.
-
-    with closing(banco.conectar()) as conexao:
-        with conexao:
-            conexao.execute('''
-                CREATE TABLE IF NOT EXISTS acessos (
-                    email TEXT PRIMARY KEY COLLATE NOCASE,
-                    tipo_usuario TEXT NOT NULL
-                        CHECK (tipo_usuario IN ('discente', 'docente', 'admin')),
-                    senha_hash TEXT NOT NULL,
-                    trocar_senha INTEGER NOT NULL DEFAULT 1
-                )
-            ''')
+class Sessao:
+    def __init__(self):
+        self.__usuario = None   # Inicialmente sem nenhum usuario conectado (é a Conta)
+        self.__perfil = None    # Discente/Docente do usuário (admin não tem perfil)
+ 
+    # ========== { GETTER } ========== #
+ 
+    @property
+    def usuario(self):
+        return self.__usuario   # Usuario conectado
+ 
+    @property
+    def perfil(self):
+        return self.__perfil
+ 
+    @property
+    def autenticada(self):      # Verificação
+        return self.__usuario is not None
+ 
+    # ========== { CONTROLE DA SESSAO } ========== #
+ 
+    def iniciar(self, usuario, perfil=None):
+ 
+        if usuario is None:
+            raise ValueError('Não é possível iniciar uma sessão sem usuário.')
+ 
+        # Impede substituir uma sessão já ativa.
+        if self.autenticada:
+            raise ValueError('Já existe um usuário conectado.')
+ 
+        self.__usuario = usuario
+        self.__perfil = perfil
+ 
+    def encerrar(self):
+        self.__usuario = None
+        self.__perfil = None
 
 
 # ============================= { FUNÇÕES AUXILIARES } ============================= #
@@ -71,22 +167,6 @@ def _validar_nova_senha(senha):
         )
 
     return senha
-
-
-def _buscar_acesso(email):
-    # Busca as credenciais de um e-mail (sem diferenciar maiúsculas).
-
-    criar_tabela_acessos()
-
-    with closing(banco.conectar()) as conexao:
-        return conexao.execute(
-            '''
-            SELECT *
-            FROM acessos
-            WHERE email = ?
-            ''',
-            (email.strip(),)
-        ).fetchone()
 
 
 def _inserir_acesso(email, tipo, senha_hash, trocar_senha):
@@ -114,15 +194,8 @@ def criar_admin_inicial(email, senha):
     email = validar_email(email)
     _validar_nova_senha(senha)
 
-    criar_tabela_acessos()
-
     with closing(banco.conectar()) as conexao:
-        existe_admin = conexao.execute(
-            '''
-            SELECT 1
-            FROM acessos
-            WHERE tipo_usuario = 'admin'
-            '''
+        existe_admin = conexao.execute("SELECT 1 FROM acessos WHERE tipo_usuario = 'admin'"
         ).fetchone()
 
     if existe_admin:
@@ -148,8 +221,6 @@ def gerar_acesso(admin, email, tipo):
     if tipo not in tipos_usuario:
         raise ValueError('Tipo de usuário inválido.')
 
-    criar_tabela_acessos()
-
     senha_inicial = gerar_senha_aleatoria()
     _inserir_acesso(email, tipo, gerar_hash_senha(senha_inicial), 1)
 
@@ -168,7 +239,13 @@ def autenticar(email, senha):
     if not isinstance(senha, str) or not senha:
         return None
 
-    acesso = _buscar_acesso(email)
+    # Busca as credenciais de um e-mail (sem diferenciar maiúsculas).
+    with closing(conectar()) as conexao:
+        acesso = conexao.execute(
+            'SELECT * FROM acessos WHERE email = ?',
+            (email.strip(),)
+        ).fetchone()
+
 
     if acesso is None:
         return None
@@ -177,6 +254,7 @@ def autenticar(email, senha):
         return None
 
     return Conta(acesso['email'], acesso['tipo_usuario'], acesso['trocar_senha'])
+
 
 
 def trocar_senha(email, senha_atual, nova_senha):

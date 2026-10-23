@@ -2,8 +2,8 @@ from getpass import getpass     # Lê a senha no terminal sem exibi-la.
 
 from .login import autenticar, trocar_senha, gerar_acesso, tipos_usuario
 from .banco import buscar_perfil, cadastrar_perfil
-from .user_types import cursos_disponiveis
-from .session import Sessao
+from .user import cursos_disponiveis
+from .paginas import abrir_menu, criar_pagina, PaginaCardapio, PaginaTurmas
 
 
 # ============================= { INTERFACE DO SISTEMA } ============================= #
@@ -14,27 +14,16 @@ class InterfaceFCTE:
         self.__sessao = Sessao()
 
     def executar(self):
-        
-        while True:
-            print('\n===== PORTAL DISCENTE - UNB FCTE =====')
-            print('1 - Fazer login')
-            print('2 - Acessar portal público')
-            print('3 - Sair')
-
-            opcao = input('Escolha uma opção: ').strip()
-
-            if opcao == '1':
-                self.__fazer_login()
-
-            elif opcao == '2':
-                self.__portal_publico()
-
-            elif opcao == '3':
-                print('Encerrando o sistema...')
-                break
-
-            else:
-                print('Opção inválida. Tente novamente.')
+        abrir_menu(
+            'PORTAL DISCENTE - UNB FCTE',
+            lambda: [
+                ('Fazer login', self.__fazer_login),
+                ('Acessar portal público', self.__portal_publico),
+            ],
+            saida='Sair'
+        )
+ 
+        print('Encerrando o sistema...')
 
 
     def __fazer_login(self):
@@ -144,58 +133,49 @@ class InterfaceFCTE:
 
 
     def __portal_publico(self):
-        # Exibe informações que não exigem autenticação.
-        while True:
-            print('\n========== PORTAL PÚBLICO ==========')
-            print('1 - Consultar cursos')
-            print('2 - Consultar organizações estudantis')
-            print('3 - Consultar calendário acadêmico')
-            print('4 - Voltar ao menu principal')
-
-            opcao = input('Escolha uma opção: ').strip()
-
-            if opcao == '1':
-                print('Consulta de cursos em desenvolvimento.')
-            elif opcao == '2':
-                print('Consulta de organizações em desenvolvimento.')
-            elif opcao == '3':
-                print('Consulta de calendário em desenvolvimento.')
-            elif opcao == '4':
-                break
-            else:
-                print('Opção inválida. Tente novamente.')
-
-
+        abrir_menu(
+            'PORTAL PÚBLICO',
+            lambda: [
+                ('Consultar cursos', lambda: print('Consulta de cursos em desenvolvimento.')),
+                ('Consultar organizações estudantis', lambda: print('Consulta de organizações em desenvolvimento.')),
+                ('Consultar calendário acadêmico', lambda: print('Consulta de calendário em desenvolvimento.')),
+                ('Cardápio do RU', lambda: PaginaCardapio(self.__sessao).executar()),
+                ('Turmas do SIGAA', lambda: PaginaTurmas(self.__sessao).executar()),
+            ],
+            saida='Voltar ao menu principal'
+        )
+ 
+ 
     def __abrir_menu_usuario(self):
         conta = self.__sessao.usuario
         perfil = self.__sessao.perfil
-
-        while self.__sessao.autenticada:
-            print('\n===== MENU DO USUÁRIO =====')
-
+ 
+        def cabecalho():
             if perfil is not None:
-                print(f'Nome: {perfil.nome}')
+                print(f'\nNome: {perfil.nome}')
                 print(f'Matrícula: {perfil.id_user}')
-                print(f'Curso/Área: {getattr(perfil, "curso", None) or perfil.area}')
-
+                print(f'Curso/Área: {perfil.curso_ou_area}')
+ 
             print(f'E-mail: {conta.email}')
             print(f'Tipo: {conta.tipo_usuario}')
-
+ 
+        def opcoes():
+            lista = [
+                ('Oportunidades e organizações', lambda: criar_pagina(self.__sessao).executar()),
+                ('Cardápio do RU', lambda: PaginaCardapio(self.__sessao).executar()),
+                ('Turmas do SIGAA', lambda: PaginaTurmas(self.__sessao).executar()),
+            ]
+ 
             if conta.eh_admin:
-                print('1 - Gerar acesso para um e-mail')
-
-            print('0 - Sair da conta')
-
-            opcao = input('Escolha uma opção: ').strip()
-
-            if opcao == '0':
-                self.__sessao.encerrar()
-                print('Logout realizado com sucesso!')
-            elif opcao == '1' and conta.eh_admin:
-                self.__gerar_acesso()
-            else:
-                print('Opção inválida. Tente novamente.')
-
-
+                lista.append(('Gerar acesso para um e-mail', self.__gerar_acesso))
+ 
+            return lista
+ 
+        abrir_menu('MENU DO USUÁRIO', opcoes, saida='Sair da conta', cabecalho=cabecalho)
+ 
+        self.__sessao.encerrar()
+        print('Logout realizado com sucesso!')
+ 
+ 
 if __name__ == '__main__':
     InterfaceFCTE().executar()
