@@ -25,10 +25,10 @@ def gerar_hash_senha(senha):
     if not isinstance(senha, str) or not senha:
         raise ValueError('A senha deve ser informada.')
 
-    sal = secrets.tocken_bytes(16)
+    sal = secrets.token_bytes(16)
 
-    hash_senha = hashlib.pdkdf2_hmac(
-        'sha258',
+    hash_senha = hashlib.pbkdf2_hmac(
+        'sha256',
         senha.encode('utf-8'),
         sal,
         iteracoes
@@ -240,7 +240,7 @@ def autenticar(email, senha):
         return None
 
     # Busca as credenciais de um e-mail (sem diferenciar maiúsculas).
-    with closing(conectar()) as conexao:
+    with closing(banco.conectar()) as conexao:
         acesso = conexao.execute(
             'SELECT * FROM acessos WHERE email = ?',
             (email.strip(),)

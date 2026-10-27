@@ -14,6 +14,7 @@ categorias_oportunidades = {
     'projeto_extensao': 'Projeto de extensão',
     'projeto_pesquisa': 'Projeto de pesquisa científica',
     'estagio': 'Estágio',
+    'monitoria': 'Monitoria',
 }
 
 # Tipos de entidades fixas da instituição (consultadas apenas por discentes)
@@ -26,7 +27,7 @@ tipos_entidades_fixas = {
 # Categorias de oportunidades que cada perfil enxerga no mural
 categorias_por_perfil = {
     'discente': tuple(categorias_oportunidades),
-    'docente': ('estagio', 'projeto_extensao', 'projeto_pesquisa'),
+    'docente': ('estagio', 'projeto_extensao', 'projeto_pesquisa', 'monitoria'),
     'admin' : tuple(categorias_oportunidades)
 }
 
@@ -245,9 +246,10 @@ class Oportunidade:
 
 # ============================= { ENTIDADES FIXAS } ============================= #
 
-def cadastrar_entidade_fixa(nome, tipo, instagram_link):
+def cadastrar_entidade_fixa(conta, nome, tipo, instagram_link):
     # Cadastra manualmente uma nova entidade fixa no catálogo (se necessário).
     exigir_admin(conta)
+    _popular_entidades_fixas()      # senão a lista padrão nunca entraria depois do primeiro cadastro
 
     if tipo not in tipos_entidades_fixas:
         raise ValueError('Tipo de entidade fixa inválido.')
@@ -315,7 +317,7 @@ def _exigir_tipo(perfil, tipo):
 
 def _consultar(sql, parametros=()):
     with closing(conectar()) as conexao:
-        return conexao.execute(sll, parametros).fetchall()
+        return conexao.execute(sql, parametros).fetchall()
 
 def _reconstruir(linha):
     return Oportunidade(
@@ -427,6 +429,11 @@ def listar_minhas(perfil):
     )
  
     return [_reconstruir(linha) for linha in linhas]
+
+
+def listar_extensao(perfil):
+    # Atividades de extensão publicadas pelo docente (dados do perfil).
+    return [o for o in listar_minhas(perfil) if o.categoria == 'projeto_extensao']
  
  
 def listar_todas(conta):
@@ -457,7 +464,7 @@ def publicar(autor, titulo, categoria, descricao, contato, prazo=None):
 
     return _inserir(Oportunidade(
         titulo, categoria, descricao, contato, prazo,
-        autor_id=perfil.id_user, autor_nome=perfil.nome
+        autor_id=autor_id, autor_nome=autor_nome
     ))
 
 
@@ -468,7 +475,7 @@ def editar(perfil, id_oportunidade, **campos):
     if not campos or any(nome not in campos_editaveis for nome in campos):
         raise ValueError('Informe apenas campos editáveis: ' + ', '.join(campos_editaveis))
 
-    oportunidade = _buscar_do_autor(perfil, id_oportunidade)
+    oportunidade = _buscar_gerenciavel(perfil, id_oportunidade)
 
     if oportunidade.encerrada:
         raise ValueError('Publicações encerradas não podem ser editadas.')
@@ -629,82 +636,3 @@ def listar_interessados(usuario, id_oportunidade):
     )
  
     return [dict(linha) for linha in linhas]
-
-# ============================= { DISCENTE: CONSULTAR MURAL } ============================= #
-
-def listar_para_discente(perfil, categoria=None):
-    # Só oportunidades abertas e dentro do prazo, nas categorias que o discente enxerga.
-    _exigir_tipo(perfil, 'discente')
-
-    permitidas = categorias_do_perfil(perfil)
-
-    if categoria is not None and categoria not in permitidas:
-        raise PermissionError('Categoria não disponível para o seu perfil.')
-
-    criar_tabela()
-
-    alvo = (categoria,) if categoria else permitidas
-    marcadores = ', '.join('?' for _ in alvo)
-
-    with closing(conectar()) as conexao:
-        linhas = conexao.execute(
-            f'''
-            SELECT * FROM oportunidades
-            WHERE encerrada = 0 AND categoria IN ({marcadores})
-            ORDER BY publicada_em DESC, id DESC
-            ''',
-            alvo
-        ).fetchall()
-
-    oportunidades = [_reconstruir(linha) for linha in linhas]
-
-    return [o for o in oportunidades if o.inscricoes_abertas()]
-
-
-# ============================= { API PARA OUTROS MÓDULOS } ============================= #
-
-def buscar(id_oportunidade):
-    # Devolve a Oportunidade ou None.
-    return _buscar(id_oportunidade)
-
-
-def listar_todas():
-    # Todas as oportunidades, de qualquer categoria e situação (uso do admin).
-    criar_tabela()
-
-    with closing(conectar()) as conexao:
-        linhas = conexao.execute(
-            'SELECT * FROM oportunidades ORDER BY publicada_em DESC, id DESC'
-        ).fetchall()
-
-    return [_reconstruir(linha) for linha in linhas]
-
-
-def inserir(oportunidade):
-    # Grava uma Oportunidade nova e preenche o id gerado.
-    criar_tabela()
-
-    with closing(conectar()) as conexao, conexao:
-        cursor = conexao.execute(
-            '''
-            INSERT INTO oportunidades (
-                titulo, categoria, descricao, contato, prazo,
-                autor_id, autor_nome, encerrada, publicada_em
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''',
-            (
-                oportunidade.titulo,
-                oportunidade.categoria,
-                oportunidade.descricao,
-                oportunidade.contato,
-                oportunidade.prazo.isoformat() if oportunidade.prazo else None,
-                oportunidade.autor_id,
-                oportunidade.autor_nome,
-                int(oportunidade.encerrada),
-                oportunidade.publicada_em
-            )
-        )
-
-    oportunidade.definir_id(cursor.lastrowid)
-    return oportunidade

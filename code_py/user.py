@@ -54,11 +54,11 @@ def _cpf_valido(cpf):
         return False
 
     for tamanho in (9, 10):
-        soma = sum(int(cpf[i]) * (tamamho + 1 - i) for i in range(tamanho))
+        soma = sum(int(cpf[i]) * (tamanho + 1 - i) for i in range(tamanho))
         digito = 0 if soma % 11 < 2 else 11 - soma % 11
 
-    if digito != int(cpf[tamanho]):
-        return False
+        if digito != int(cpf[tamanho]):
+            return False
     
     return True
 
@@ -70,7 +70,7 @@ def _formatar_cpf(cpf):
             'CPF inválido: O CPF deve conter exatamente 11 dígitos.'
         )
 
-    if not User.__validar_cpf(cpf):         # chama o método __validar_cpf
+    if not _cpf_valido(cpf):
         raise ValueError('CPF inválido.')
 
     return f'{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}'
@@ -102,7 +102,7 @@ class User(ABC):
             )
 
         # Valida o CPF quando ele for informado.
-        self.__cpf = None if cpf is None else self.__cpf = self._formatar_cpf(cpf)
+        self.__cpf = None if cpf is None else _formatar_cpf(cpf)
 
         self.__email = validar_email(email)
 
@@ -161,7 +161,7 @@ class User(ABC):
         if semestre not in (1,2):
             raise ValueError ('O semestre deve ser 1 ou 2.')
 
-        if not (2008,8) <= entrada <= semestre_atual():
+        if not (2008, 2) <= (ano, semestre) <= semestre_atual():
             raise ValueError(
                 'Período de entrada inválido.'
             )
@@ -190,29 +190,29 @@ class Discente(User):
 
         self.curso = curso
 
-        @property
-        def tipo_usuario(self):
-            return 'discente'
+    @property
+    def tipo_usuario(self):
+        return 'discente'
 
-        @property
-        def curso(self):
-            return self.__curso
+    @property
+    def curso(self):
+        return self.__curso
 
-        @property
-        def curso_ou_area(self):
-            return self.__curso
+    @property
+    def curso_ou_area(self):
+        return self.__curso
 
-        @curso.setter
-        def curso(self, v_curso):
-            if not isinstance(v_curso, str) or not v_curso.strip():
-                raise ValueError('A área deve ser informada.')
+    @curso.setter
+    def curso(self, v_curso):
+        if not isinstance(v_curso, str) or not v_curso.strip():
+            raise ValueError('O curso deve ser informado.')
 
-            v_curso = v_curso.strip()
+        v_curso = v_curso.strip()
 
-            if v_curso not in cursos_disponiveis
-                raise ValueError('Área acadêmica indisponível.')
+        if v_curso not in cursos_disponiveis:
+            raise ValueError('Curso indisponível.')
 
-            self.__curso = v_curso
+        self.__curso = v_curso
 
 
 # ============================= { CLASSE DOCENTE } ============================= #
@@ -225,26 +225,26 @@ class Docente(User):
         self.__area = None
         self.area = area
 
-        @property
-        def tipo_usuario(self):
-            return 'docente'
+    @property
+    def tipo_usuario(self):
+        return 'docente'
 
-        @property
-        def area(self):
-            return self.__area
+    @property
+    def area(self):
+        return self.__area
 
-        @property
-        def curso_ou_area(self):
-            return self.__area
+    @property
+    def curso_ou_area(self):
+        return self.__area
 
-        @area.setter
-        def area(self, v_area):
-            if not isinstance(v_area, str) or not v_area.strip():
-                raise ValueError('A área deve ser informada.')
+    @area.setter
+    def area(self, v_area):
+        if not isinstance(v_area, str) or not v_area.strip():
+            raise ValueError('A área deve ser informada.')
 
-            v_area = v_area.strip()
+        v_area = v_area.strip()
 
-            if v_area not in areas_disponiveis
-                raise ValueError('Área acadêmica indisponível.')
+        if v_area not in areas_disponiveis:
+            raise ValueError('Área acadêmica indisponível.')
 
-            self.__area = v_area
+        self.__area = v_area

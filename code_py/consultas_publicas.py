@@ -190,7 +190,7 @@ def listar_turmas(ano=None, semestre=None, filtro=None):
     if ano is None or semestre is None:
         ano, semestre = semestre_atual()
 
-    turmas = _sistema().listar_turmas_sigaa(ano, semestre)
+    turmas = _sistema().listar_turmas(ano, semestre)
 
     if filtro and filtro.strip():
         termo = _sem_acento(filtro.strip())
@@ -226,6 +226,6 @@ def atualizar_turmas_sigaa(conta, ano=None, semestre=None):
     _exigir_admin(conta)
 
     try:
-        return _sistema().atualizar_turmas_sigaa(ano, semestre)
+        return _sistema().atualizar_turmas_sigaa(conta, ano, semestre)
     except (OSError, ValueError, RuntimeError) as erro:
         raise RuntimeError(f'Não foi possível atualizar as turmas: {erro}')

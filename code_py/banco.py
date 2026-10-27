@@ -70,9 +70,20 @@ esquema = '''
         fonte TEXT NOT NULL,
         PRIMARY KEY (categoria, chave)
     );
-'''
 
-_tabelas_prontas = False
+    -- 'turma' é a mesma chave das turmas em dados_publicos: 'periodo|codigo|numero'
+    CREATE TABLE IF NOT EXISTS ofertas (
+        turma TEXT PRIMARY KEY,
+        docente_id TEXT NOT NULL REFERENCES usuarios(id_user)
+    );
+
+    CREATE TABLE IF NOT EXISTS matriculas (
+        discente_id TEXT NOT NULL REFERENCES usuarios(id_user),
+        turma TEXT NOT NULL,
+        nota REAL CHECK (nota BETWEEN 0 AND 10),
+        PRIMARY KEY (discente_id, turma)
+    );
+'''
 
 # ============================= { CONEXÃO } ============================= #
 
@@ -82,9 +93,7 @@ def conectar():
     conexao = sqlite3.connect(caminho_banco)
     conexao.row_factory = sqlite3.Row               # Permite acessar os resultados do banco pelo nome das colunas
     
-    if not _tabelas_prontas:
-        conexao.executescript(esquema)
-        _tabelas_prontas = True
+    conexao.executescript(esquema)                  # IF NOT EXISTS: só cria o que ainda não existe
     
     return conexao
 
@@ -108,7 +117,7 @@ def buscar_perfil(email):
 
         # fetchone() -> retorna o primeiro resultado da consulta ou None se não houver resultados.
 
-    return reconstruir_usuario(dados)
+    return __reconstruir(dados)
 
 
 # ============================= { CADASTRO } ============================= #
@@ -127,7 +136,7 @@ def cadastrar_perfil(conta, nome, cpf, ano_entrada, semestre_entrada, curso_ou_a
 
     for tentativa in range(3):
         try:
-            with closing(conectar()) as conexao:
+            with closing(conectar()) as conexao, conexao:      # 'with conexao' confirma (commit) a gravação
                 conexao.execute(
                     '''
                     INSERT INTO usuarios (
@@ -156,7 +165,7 @@ def cadastrar_perfil(conta, nome, cpf, ano_entrada, semestre_entrada, curso_ou_a
                 usuario.sortear_nova_matricula()
                 continue  
 
-            raise ValueError('Este e-mail of CPF já possui perfil cadastrado')
+            raise ValueError('Este e-mail ou CPF já possui perfil cadastrado.')
 
 
 # ============================= { RECONSTRUÇÃO DE OBJETOS } ============================= #

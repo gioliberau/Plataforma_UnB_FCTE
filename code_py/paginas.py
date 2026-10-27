@@ -1,12 +1,12 @@
 import re
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import date, datetime
 
 # ----------------------------------------------- #
 
 from . import organizacoes as ops
-from . import cardapio as cp
-from . import system import SistemaFCTE
+from . import consultas_publicas as cp
+from .system import SistemaFCTE
 
 # ============================= { MENU GENÉRICO } ============================= #
 
@@ -244,6 +244,9 @@ class PaginaDiscente(PaginaPerfil):
         lista = ops.listar_para_discente(self._perfil, categoria)
         self._mostrar(lista, 'Nenhuma oportunidade aberta nesta categoria no momento.')
 
+    def _consultar_entidades(self, tipo):
+        self._mostrar_entidades(ops.listar_entidades_fixas(self._perfil, tipo))
+
     def _demonstrar_interesse(self):
         id_oportunidade = self._ler_id()
 
@@ -253,17 +256,17 @@ class PaginaDiscente(PaginaPerfil):
             print('Operação cancelada.')
             return
 
-        oportunidade = interesses.demonstrar_interesse(self._perfil, id_oportunidade)
+        oportunidade = ops.demonstrar_interesse(self._perfil, id_oportunidade)
         print(f'Interesse registrado em "{oportunidade.titulo}"!')
 
     def _meus_interesses(self):
         self._mostrar(
-            interesses.listar_meus_interesses(self._perfil),
+            ops.listar_meus_interesses(self._perfil),
             'Você ainda não demonstrou interesse em nenhuma oportunidade.'
         )
 
     def _retirar_interesse(self):
-        interesses.retirar_interesse(self._perfil, self._ler_id())
+        ops.retirar_interesse(self._perfil, self._ler_id())
         print('Interesse removido.')
 
 
@@ -296,13 +299,8 @@ class PaginaDocente(PaginaPerfil):
 
         for oportunidade in lista:
             print(oportunidade)
-            print(f'    Interessados: {interesses.contar(oportunidade.id)}')
+            print(f'    Interessados: {ops.contar_interessados(oportunidade.id)}')
             print()
-
-    def _interessados(self):
-        self._mostrar_interessados(
-            interesses.listar_interessados(self._perfil, self._ler_id())
-        )
 
     def _editar(self):
         id_oportunidade = self._ler_id()
@@ -357,12 +355,12 @@ class PaginaAdmin(PaginaPerfil):
 
     def _listar(self):
         self._mostrar(
-            moderacao.listar_todas(self._conta),
+            ops.listar_todas(self._conta),
             'Nenhuma oportunidade cadastrada.'
         )
 
     def _listar_entidades(self):
-        self._mostrar_entidades(moderacao.listar_entidades(self._conta))
+        self._mostrar_entidades(ops.listar_entidades_fixas(self._conta))
 
     def _cadastrar_entidade(self):
         tipos = tuple(ops.tipos_entidades_fixas)
@@ -379,7 +377,7 @@ class PaginaAdmin(PaginaPerfil):
         nome = input('Nome: ')
         link = input('Link do Instagram: ')
 
-        moderacao.cadastrar_entidade(self._conta, nome, tipos[int(escolha) - 1], link)
+        ops.cadastrar_entidade_fixa(self._conta, nome, tipos[int(escolha) - 1], link)
         print('Entidade cadastrada!')
 
     def _remover(self):
@@ -389,7 +387,7 @@ class PaginaAdmin(PaginaPerfil):
             print('Operação cancelada.')
             return
 
-        moderacao.remover(self._conta, id_oportunidade)
+        ops.remover(self._conta, id_oportunidade)
         print('Publicação removida.')
 
 # ============================= { PÁGINA DO CARDÁPIO } ============================= #
@@ -578,7 +576,7 @@ class PaginaTurmas(PaginaPerfil):
         ano, semestre = self._ler_periodo()
  
         if self._confirmar('Consultar o SIGAA agora?'):
-            total = self._sistema.atualizar_turmas(self._conta, ano, semestre)
+            total = self._sistema.atualizar_turmas_sigaa(self._conta, ano, semestre)
             print(f'Turmas atualizadas ({total} turmas gravadas).')
 
 

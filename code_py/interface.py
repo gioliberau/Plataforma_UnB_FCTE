@@ -1,6 +1,6 @@
 from getpass import getpass     # Lê a senha no terminal sem exibi-la.
 
-from .login import autenticar, trocar_senha, gerar_acesso, tipos_usuario
+from .login import autenticar, trocar_senha, gerar_acesso, tipos_usuario, Sessao
 from .banco import buscar_perfil, cadastrar_perfil
 from .user import cursos_disponiveis
 from .paginas import abrir_menu, criar_pagina, PaginaCardapio, PaginaTurmas

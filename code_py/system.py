@@ -12,7 +12,7 @@ import unicodedata
  
 from .banco import conectar
 from .login import exigir_admin
-from .usuarios import semestre_atual, cursos_disponiveis
+from .user import semestre_atual, cursos_disponiveis
 
 # ============================= { SIGAA: LEITURA DA PÁGINA PÚBLICA } ============================= #
 
@@ -239,7 +239,7 @@ class SistemaFCTE:
 
     # ========== { Turmas do SIGAA } ========== #
 
-    def atualizar_turmas_sigaa(self, ano=None, semestre=None):
+    def atualizar_turmas_sigaa(self, conta, ano=None, semestre=None):
         
         exigir_admin(conta)
  
@@ -277,7 +277,7 @@ class SistemaFCTE:
 
         return len(turmas)
 
-    def listar_turmas(self, ano=None, semestre=None):
+    def listar_turmas(self, ano=None, semestre=None, filtro=None):
         
         if ano is None or semestre is None:
             ano, semestre = semestre_atual()
@@ -286,9 +286,9 @@ class SistemaFCTE:
             registros = conexao.execute('''
                 SELECT valor
                 FROM dados_publicos
-                WHERE categoria = ?
+                WHERE categoria = ? AND chave LIKE ?
                 ORDER BY chave
-            ''', ('turma_sigaa',)).fetchall()
+            ''', ('turma_sigaa', f'{ano}.{semestre}|%')).fetchall()
 
         turmas = [json.loads(registro['valor']) for registro in registros]
 
