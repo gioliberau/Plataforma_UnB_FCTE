@@ -1,0 +1,89 @@
+{
+  "_aviso": "Datas da graduação, copiadas do site da SAA/UnB. Podem mudar: confira sempre em https://saa.unb.br/calendario-academico-graduacao/",
+  "fontes": [
+    "Resolução CEPE nº 0140/2025 (calendário 2026)",
+    "Calendário de Matrícula 2026.1 (27/02/2026) e 2026.2 (25/06/2026), SAA/UnB",
+    "Calendário por Atividades 2026.2, SAA/UnB",
+    "Calendário SIGAA público (trancamento de turma 2026.1)"
+  ],
+  "eventos": [
+    {
+      "periodo": "2026.1",
+      "inicio": "2026-02-23",
+      "fim": "2026-02-26",
+      "descricao": "Solicitação de matrícula (SIGAA)"
+    },
+    {
+      "periodo": "2026.1",
+      "inicio": "2026-03-03",
+      "fim": "2026-03-05",
+      "descricao": "Rematrícula (SIGAA)"
+    },
+    {
+      "periodo": "2026.1",
+      "inicio": "2026-03-10",
+      "fim": "2026-03-13",
+      "descricao": "Matrícula extraordinária"
+    },
+    {
+      "periodo": "2026.1",
+      "inicio": "2026-03-14",
+      "fim": "2026-05-18",
+      "descricao": "Trancamento de turma"
+    },
+    {
+      "periodo": "2026.1",
+      "inicio": "2026-03-16",
+      "fim": "2026-07-18",
+      "descricao": "Período de aulas"
+    },
+    {
+      "periodo": "2026.2",
+      "inicio": "2026-07-27",
+      "fim": "2026-07-29",
+      "descricao": "Solicitação de matrícula (SIGAA)"
+    },
+    {
+      "periodo": "2026.2",
+      "inicio": "2026-07-31",
+      "fim": null,
+      "descricao": "Resultado da matrícula (até 12h)"
+    },
+    {
+      "periodo": "2026.2",
+      "inicio": "2026-08-03",
+      "fim": "2026-08-04",
+      "descricao": "Rematrícula (SIGAA)"
+    },
+    {
+      "periodo": "2026.2",
+      "inicio": "2026-08-06",
+      "fim": null,
+      "descricao": "Resultado da rematrícula (até 12h)"
+    },
+    {
+      "periodo": "2026.2",
+      "inicio": "2026-08-07",
+      "fim": "2026-08-14",
+      "descricao": "Matrícula extraordinária"
+    },
+    {
+      "periodo": "2026.2",
+      "inicio": "2026-08-10",
+      "fim": "2026-12-14",
+      "descricao": "Período de aulas"
+    },
+    {
+      "periodo": "2026.2",
+      "inicio": "2026-12-19",
+      "fim": null,
+      "descricao": "Prazo final dos docentes para lançar a menção final"
+    },
+    {
+      "periodo": "2026.4 (verão)",
+      "inicio": "2027-01-11",
+      "fim": "2027-02-17",
+      "descricao": "Período de aulas"
+    }
+  ]
+}

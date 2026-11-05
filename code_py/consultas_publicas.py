@@ -5,12 +5,19 @@ from pathlib import Path
 
 # ----------------------------------------------- #
 
-from .user import semestre_atual
+from . import organizacoes as ops
+from .user import semestre_atual, cursos_disponiveis
 
 # ============================= { CONFIGURAÇÃO } ============================= #
 
 # Mesmo arquivo que o cardapio.py grava (fica na mesma pasta).
-arquivo_cardapio = Path(__file__).resolve().parent / 'cardapio_extraido.json'
+arquivo_cardapio = Path(__file__).resolve().parent.parent / 'data' / 'cardapio_extraido.json'
+
+# Datas do calendário acadêmico (copiadas do site da SAA/UnB).
+arquivo_calendario = Path(__file__).resolve().parent.parent / 'data' / 'calendario_academico.json'
+
+# Site oficial da FCTE, com a página de cada curso.
+site_fcte = 'https://fcte.unb.br/'
 
 refeicoes = {
     'cafe_da_manha': 'Café da manhã',
@@ -229,3 +236,95 @@ def atualizar_turmas_sigaa(conta, ano=None, semestre=None):
         return _sistema().atualizar_turmas_sigaa(conta, ano, semestre)
     except (OSError, ValueError, RuntimeError) as erro:
         raise RuntimeError(f'Não foi possível atualizar as turmas: {erro}')
+
+
+
+# ============================= { CURSOS } ============================= #  
+
+def listar_cursos():
+    # Os cursos de graduação da FCTE (mesma lista usada no cadastro do perfil).
+    return list(cursos_disponiveis)
+
+
+
+# ============================= { ORGANIZAÇÕES ESTUDANTIS } ============================= #  
+
+tipos_organizacoes = ops.tipos_entidades_fixas     # {'empresa_junior': 'Empresa Júnior', ...}
+
+
+def listar_organizacoes(tipo=None):
+    # Empresas juniores, atléticas e equipes de competição. Dados públicos: não precisa de login.
+    return ops.listar_entidades_fixas(None, tipo)
+
+
+def formatar_organizacao(entidade):
+    tipo = ops.tipos_entidades_fixas.get(entidade['tipo'], entidade['tipo'])
+
+    return f"- {entidade['nome']} ({tipo})\n    {entidade['instagram_link']}"
+
+
+
+
+# ============================= { CALENDÁRIO ACADÊMICO } ============================= #
+
+def carregar_calendario():
+    # Lê o JSON de datas. Lista vazia se o arquivo ainda não existe.
+    if not arquivo_calendario.exists():
+        return []
+
+    try:
+        with open(arquivo_calendario, encoding='utf-8') as arquivo:
+            dados = json.load(arquivo)
+    except (OSError, json.JSONDecodeError):
+        raise RuntimeError('O arquivo do calendário está ilegível.')
+
+    if not isinstance(dados, dict) or not isinstance(dados.get('eventos'), list):
+        raise RuntimeError('O arquivo do calendário está num formato inesperado.')
+
+    return dados['eventos']
+
+
+def periodos_calendario():
+    # Períodos na ordem em que aparecem no arquivo (2026.1, 2026.2, ...).
+    return list(dict.fromkeys(e['periodo'] for e in carregar_calendario()))
+
+
+def eventos_do_periodo(periodo):
+    return [e for e in carregar_calendario() if e['periodo'] == periodo]
+
+
+def atualizar_calendario(conta):
+    # Baixa os PDFs de matrícula da SAA e atualiza o JSON (usa o calendario.py). Só admin.
+    _exigir_admin(conta)
+
+    try:
+        from . import calendario
+    except ImportError:
+        raise RuntimeError(
+            'Falta a biblioteca pdfplumber. Instale com: pip install pdfplumber'
+        )
+
+    try:
+        return calendario.atualizar_calendario()
+    except (OSError, ValueError, RuntimeError) as erro:
+        raise RuntimeError(f'Não foi possível atualizar o calendário: {erro}')
+
+
+def formatar_evento(evento, hoje=None):
+    hoje = hoje or date.today()
+    inicio = date.fromisoformat(evento['inicio'])
+    fim = date.fromisoformat(evento['fim']) if evento.get('fim') else inicio
+
+    datas = inicio.strftime('%d/%m/%Y')
+
+    if fim != inicio:
+        datas = f"{inicio.strftime('%d/%m')} a {fim.strftime('%d/%m/%Y')}"
+
+    if fim < hoje:
+        situacao = 'já passou'
+    elif inicio <= hoje:
+        situacao = 'EM ANDAMENTO'
+    else:
+        situacao = f'daqui a {(inicio - hoje).days} dia(s)'
+
+    return f"{datas} - {evento['descricao']} ({situacao})"

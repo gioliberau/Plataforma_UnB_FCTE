@@ -4,6 +4,8 @@ from .login import autenticar, trocar_senha, gerar_acesso, tipos_usuario, Sessao
 from .banco import buscar_perfil, cadastrar_perfil
 from .user import cursos_disponiveis
 from .paginas import abrir_menu, criar_pagina, PaginaCardapio, PaginaTurmas
+from .biblioteca import PaginaBiblioteca          
+from . import consultas_publicas as cp
 
 
 # ============================= { INTERFACE DO SISTEMA } ============================= #
@@ -136,15 +138,79 @@ class InterfaceFCTE:
         abrir_menu(
             'PORTAL PÚBLICO',
             lambda: [
-                ('Consultar cursos', lambda: print('Consulta de cursos em desenvolvimento.')),
-                ('Consultar organizações estudantis', lambda: print('Consulta de organizações em desenvolvimento.')),
-                ('Consultar calendário acadêmico', lambda: print('Consulta de calendário em desenvolvimento.')),
+                ('Consultar cursos', self.__consultar_cursos),                              
+                ('Consultar organizações estudantis', self.__consultar_organizacoes),      
+                ('Consultar calendário acadêmico', self.__consultar_calendario), 
                 ('Cardápio do RU', lambda: PaginaCardapio(self.__sessao).executar()),
                 ('Turmas do SIGAA', lambda: PaginaTurmas(self.__sessao).executar()),
+                ('Biblioteca FCTE (consultar acervo)', lambda: PaginaBiblioteca(self.__sessao).executar()),
             ],
             saida='Voltar ao menu principal'
         )
+    
+    # ========== { Consultas públicas } ========== #
  
+    def __consultar_cursos(self):
+        print('\nCursos de graduação da FCTE:')
+ 
+        for numero, curso in enumerate(cp.listar_cursos(), start=1):
+            print(f'{numero} - {curso}')
+ 
+        print(f'\nMais informações sobre cada curso: {cp.site_fcte}')
+ 
+    def __consultar_organizacoes(self):
+        abrir_menu(
+            'ORGANIZAÇÕES ESTUDANTIS',
+            lambda: [
+                (rotulo, lambda tipo=tipo: self.__mostrar_organizacoes(tipo))
+                for tipo, rotulo in cp.tipos_organizacoes.items()
+            ] + [('Todas', lambda: self.__mostrar_organizacoes(None))]
+        )
+ 
+    @staticmethod
+    def __mostrar_organizacoes(tipo):
+        organizacoes = cp.listar_organizacoes(tipo)
+ 
+        if not organizacoes:
+            print('Nenhuma organização cadastrada.')
+            return
+ 
+        print()
+ 
+        for organizacao in organizacoes:
+            print(cp.formatar_organizacao(organizacao))
+ 
+
+    def __atualizar_calendario(self):
+        if input('Consultar o site da SAA agora? (s/n): ').strip().lower() != 's':
+            print('Operação cancelada.')
+            return
+ 
+        total = cp.atualizar_calendario(self.__sessao.usuario)
+        print(f'Calendário atualizado ({total} datas lidas).')
+
+
+    def __consultar_calendario(self):
+        periodos = cp.periodos_calendario()
+ 
+        if not periodos:
+            print('O calendário ainda não foi carregado.')
+            return
+ 
+        abrir_menu(
+            'CALENDÁRIO ACADÊMICO',
+            lambda: [(f'Período {periodo}', lambda periodo=periodo: self.__mostrar_calendario(periodo))
+                     for periodo in periodos]
+        )
+ 
+    @staticmethod
+    def __mostrar_calendario(periodo):
+        print(f'\nPeríodo {periodo}:')
+ 
+        for evento in cp.eventos_do_periodo(periodo):
+            print(f'  {cp.formatar_evento(evento)}')
+ 
+        print('\nAs datas podem mudar. Confira em: https://saa.unb.br/calendario-academico-graduacao/')
  
     def __abrir_menu_usuario(self):
         conta = self.__sessao.usuario

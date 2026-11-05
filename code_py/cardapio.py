@@ -8,6 +8,8 @@ from pathlib import Path
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
+import pdfplumber
+
 
 from .login import exigir_admin
 
@@ -15,7 +17,7 @@ from .login import exigir_admin
 # ============================= { CONFIGURAÇÕES } ============================= #
 
 pag_cardapio = "https://ru.unb.br/cardapio-gama/"
-arquivo_saida = Path(__file__).resolve().parent / "cardapio_extraido.json"
+arquivo_saida = Path(__file__).resolve().parent.parent / 'data' / "cardapio_extraido.json"
 
 refeicao_da_pagina = {
     0: "cafe_da_manha",

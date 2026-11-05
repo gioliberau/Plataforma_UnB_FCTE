@@ -1,0 +1,270 @@
+{
+  "_aviso": "Títulos reais, usados nas bibliografias dos cursos de engenharia. A quantidade de exemplares é SIMULADA: não vem do Pergamum da UnB. Edite este arquivo (ou exporte o catálogo real) e peça ao admin 'Recarregar acervo'.",
+  "biblioteca": "Biblioteca FCTE (simulada)",
+  "livros": [
+    {
+      "titulo": "Cálculo, vol. 1",
+      "autores": "James Stewart",
+      "area": "Matemática",
+      "exemplares": 4
+    },
+    {
+      "titulo": "Cálculo, vol. 2",
+      "autores": "James Stewart",
+      "area": "Matemática",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Um Curso de Cálculo, vol. 1",
+      "autores": "Hamilton Luiz Guidorizzi",
+      "area": "Matemática",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Cálculo A: funções, limite, derivação, integração",
+      "autores": "Diva Marília Flemming; Mirian Buss Gonçalves",
+      "area": "Matemática",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Álgebra Linear",
+      "autores": "José Luiz Boldrini; Sueli I. Rodrigues Costa; Vera Lúcia Figueiredo; Henry G. Wetzler",
+      "area": "Matemática",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Álgebra Linear com Aplicações",
+      "autores": "Howard Anton; Chris Rorres",
+      "area": "Matemática",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Equações Diferenciais Elementares e Problemas de Valores de Contorno",
+      "autores": "William E. Boyce; Richard C. DiPrima",
+      "area": "Matemática",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Cálculo Numérico: aspectos teóricos e computacionais",
+      "autores": "Márcia A. Gomes Ruggiero; Vera Lúcia da Rocha Lopes",
+      "area": "Matemática",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Estatística Básica",
+      "autores": "Wilton de O. Bussab; Pedro A. Morettin",
+      "area": "Matemática",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Fundamentos de Física, vol. 1: Mecânica",
+      "autores": "David Halliday; Robert Resnick; Jearl Walker",
+      "area": "Física",
+      "exemplares": 4
+    },
+    {
+      "titulo": "Fundamentos de Física, vol. 2: Gravitação, Ondas e Termodinâmica",
+      "autores": "David Halliday; Robert Resnick; Jearl Walker",
+      "area": "Física",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Fundamentos de Física, vol. 3: Eletromagnetismo",
+      "autores": "David Halliday; Robert Resnick; Jearl Walker",
+      "area": "Física",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Curso de Física Básica, vol. 1: Mecânica",
+      "autores": "H. Moysés Nussenzveig",
+      "area": "Física",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Química Geral e Reações Químicas",
+      "autores": "John C. Kotz; Paul M. Treichel Jr.",
+      "area": "Química",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Engenharia de Software",
+      "autores": "Ian Sommerville",
+      "area": "Software",
+      "exemplares": 4
+    },
+    {
+      "titulo": "Engenharia de Software: uma abordagem profissional",
+      "autores": "Roger S. Pressman; Bruce R. Maxim",
+      "area": "Software",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Padrões de Projeto: soluções reutilizáveis de software orientado a objetos",
+      "autores": "Erich Gamma; Richard Helm; Ralph Johnson; John Vlissides",
+      "area": "Software",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Código Limpo: habilidades práticas do Agile Software",
+      "autores": "Robert C. Martin",
+      "area": "Software",
+      "exemplares": 3
+    },
+    {
+      "titulo": "UML: guia do usuário",
+      "autores": "Grady Booch; James Rumbaugh; Ivar Jacobson",
+      "area": "Software",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Python Fluente",
+      "autores": "Luciano Ramalho",
+      "area": "Software",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Algoritmos: teoria e prática",
+      "autores": "Thomas H. Cormen; Charles E. Leiserson; Ronald L. Rivest; Clifford Stein",
+      "area": "Software",
+      "exemplares": 3
+    },
+    {
+      "titulo": "C: como programar",
+      "autores": "Paul Deitel; Harvey Deitel",
+      "area": "Software",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Sistemas Operacionais Modernos",
+      "autores": "Andrew S. Tanenbaum; Herbert Bos",
+      "area": "Software",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Organização Estruturada de Computadores",
+      "autores": "Andrew S. Tanenbaum; Todd Austin",
+      "area": "Software",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Redes de Computadores",
+      "autores": "Andrew S. Tanenbaum; David J. Wetherall",
+      "area": "Software",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Circuitos Elétricos",
+      "autores": "James W. Nilsson; Susan A. Riedel",
+      "area": "Eletrônica",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Eletrônica, vol. 1",
+      "autores": "Albert Malvino; David J. Bates",
+      "area": "Eletrônica",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Dispositivos Eletrônicos e Teoria de Circuitos",
+      "autores": "Robert L. Boylestad; Louis Nashelsky",
+      "area": "Eletrônica",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Microeletrônica",
+      "autores": "Adel S. Sedra; Kenneth C. Smith",
+      "area": "Eletrônica",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Sistemas Digitais: princípios e aplicações",
+      "autores": "Ronald J. Tocci; Neal S. Widmer; Gregory L. Moss",
+      "area": "Eletrônica",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Sinais e Sistemas Lineares",
+      "autores": "B. P. Lathi",
+      "area": "Eletrônica",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Elementos de Eletromagnetismo",
+      "autores": "Matthew N. O. Sadiku",
+      "area": "Energia",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Máquinas Elétricas",
+      "autores": "Stephen J. Chapman",
+      "area": "Energia",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Mecânica Vetorial para Engenheiros: estática",
+      "autores": "Ferdinand P. Beer; E. Russell Johnston Jr.",
+      "area": "Mecânica",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Resistência dos Materiais",
+      "autores": "R. C. Hibbeler",
+      "area": "Mecânica",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Termodinâmica",
+      "autores": "Yunus A. Çengel; Michael A. Boles",
+      "area": "Mecânica",
+      "exemplares": 3
+    },
+    {
+      "titulo": "Fundamentos de Transferência de Calor e de Massa",
+      "autores": "Frank P. Incropera; David P. DeWitt; et al.",
+      "area": "Mecânica",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Mecânica dos Fluidos",
+      "autores": "Frank M. White",
+      "area": "Aeroespacial",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Fundamentals of Aerodynamics",
+      "autores": "John D. Anderson Jr.",
+      "area": "Aeroespacial",
+      "exemplares": 1
+    },
+    {
+      "titulo": "Motores de Combustão Interna",
+      "autores": "Franco Brunetti",
+      "area": "Automotiva",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Engenharia de Controle Moderno",
+      "autores": "Katsuhiko Ogata",
+      "area": "Controle",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Sistemas de Controle Modernos",
+      "autores": "Richard C. Dorf; Robert H. Bishop",
+      "area": "Controle",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Introdução à Engenharia",
+      "autores": "Michael Holtzapple; W. Dan Reece",
+      "area": "Geral",
+      "exemplares": 2
+    },
+    {
+      "titulo": "Metodologia do Trabalho Científico",
+      "autores": "Antonio Joaquim Severino",
+      "area": "Geral",
+      "exemplares": 2
+    }
+  ]
+}
