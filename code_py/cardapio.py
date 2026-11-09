@@ -8,8 +8,6 @@ from pathlib import Path
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
-import pdfplumber
-
 
 from .login import exigir_admin
 
@@ -232,6 +230,9 @@ def eh_texto_de_rodape(texto):
         "mesa de apoio",
         "cardápio sujeito a alteração",
         "cardapio sujeito a alteracao",
+        "sujeito a alterações",
+        "açúcar e adoçante",
+        "acucar e adocante",
     )
 
     return any(trecho in texto for trecho in trechos_rodape)
@@ -530,8 +531,88 @@ def limpar_itens(lista_itens):
     return resultado
 
 
+# ============================= { LIMPEZA DOS ITENS } ============================= #
+
+padrao_data = re.compile(r"\b\d{2}/\d{2}/\d{4}\b")
+
+# Títulos de linha do PDF que escapam para dentro dos itens.
+rotulos_soltos = {"padrao", "padrão", "estrito", "ovolactovegetariano", "vegetariano"}
+
+
+def _sem_sobras(lista):
+    # Tira datas, rodapé e títulos de linha que vazaram para a lista de itens.
+    limpa = []
+
+    for item in lista:
+        item = normalizar(padrao_data.sub("", item))
+        item = re.sub(r"^(PADRÃO|ESTRITO)\s+", "", item)
+
+        if not item or item.casefold() in rotulos_soltos or eh_texto_de_rodape(item):
+            continue
+
+        limpa.append(item)
+
+    return limpa
+
+
+def sanitizar_registro(registro):
+    # Devolve uma cópia do registro (data/refeicao/itens) sem as sobras do PDF
+    # e com os itens deslocados recolocados na categoria certa.
+    itens = {}
+
+    for categoria, lista in registro.get("itens", {}).items():
+        lista = _sem_sobras(lista)
+
+        if lista:
+            itens[categoria] = lista
+
+    # Café da manhã: o PDF tem a linha "padrão" mesclada (todos os dias) e as faixas
+    # ficam uma linha acima. Sem fruta, tudo desce uma posição.
+    if (
+        registro.get("refeicao") == "cafe_da_manha"
+        and "fruta" not in itens
+        and "gordura" in itens
+        and "complemento_vegetariano_estrito" in itens
+    ):
+        deslocadas = {
+            "complemento_padrao": [
+                parte
+                for texto in itens.pop("gordura")
+                for parte in re.split(r"(?<=[a-zà-ú]) (?=[A-ZÀ-Ú])", texto)
+            ],
+            "complemento_ovolactovegetariano": itens.get("complemento_padrao"),
+            "complemento_vegetariano_estrito": itens.get("complemento_ovolactovegetariano"),
+            "fruta": itens.get("complemento_vegetariano_estrito"),
+        }
+        for categoria in ("complemento_padrao", "complemento_ovolactovegetariano",
+                          "complemento_vegetariano_estrito", "fruta"):
+            itens.pop(categoria, None)
+        itens.update({c: v for c, v in deslocadas.items() if v})
+
+    # Duas saladas coladas na mesma faixa: a primeira ficou sem lugar.
+    if "salada_1" not in itens and len(itens.get("salada_2", [])) >= 2:
+        primeira, *resto = itens["salada_2"]
+        itens = {"salada_1": [primeira], "salada_2": resto, **{
+            k: v for k, v in itens.items() if k != "salada_2"}}
+
+    # Feijão/arroz que caíram na faixa da sobremesa.
+    if "sobremesa" in itens:
+        fora = [i for i in itens["sobremesa"] if re.match(r"(Feijão|Arroz)\b", i)]
+
+        if fora:
+            itens["sobremesa"] = [i for i in itens["sobremesa"] if i not in fora]
+            itens["acompanhamentos"] = itens.get("acompanhamentos", []) + fora
+
+            if not itens["sobremesa"]:
+                del itens["sobremesa"]
+
+    return {**registro, "itens": itens}
+
+
 def extrair_cardapio(conteudo_pdf):
     # Gera os registros para os cinco dias e as três refeições.# 
+    import pdfplumber
+
     registros = []
 
     with pdfplumber.open(BytesIO(conteudo_pdf)) as pdf:
@@ -567,7 +648,7 @@ def extrair_cardapio(conteudo_pdf):
                 numero_pagina,
             )
 
-            refeicao = refeicoes[numero_pagina]
+            refeicao = refeicao_da_pagina[numero_pagina]
 
             # Ordem das categorias conforme aparecem no PDF.
             ordem = [
@@ -596,11 +677,11 @@ def extrair_cardapio(conteudo_pdf):
                     if lista_limpa:
                         itens[categoria] = lista_limpa
 
-                registros.append({
+                registros.append(sanitizar_registro({
                     "data": data,
                     "refeicao": refeicao,
                     "itens": itens,
-                })
+                }))
 
     return registros
 
@@ -733,26 +814,75 @@ def atualizar_cardapio_ru(conta):
 
 # ============================= { EXECUÇÃO } ============================= #
 
-def atualizar_cardapio():
-    #Baixa, extrai e salva o cardápio atualizado.
-    url_pdf = encontrar_pdf_cardapio()
-    registros = extrair_cardapio(baixar_conteudo(url_pdf))
+def atualizar_cardapio(conteudo_pdf=None):
+    
+    # Baixa (ou recebe), extrai, valida e salva o cardápio atualizado.
 
+    # 1. Localiza e baixa o PDF do RU (a menos que ele já tenha sido entregue).
+    if conteudo_pdf is None:
+        url_pdf = encontrar_pdf_cardapio()
+        conteudo_pdf = baixar_conteudo(url_pdf)
+
+    # 2. Extrai os dados do PDF.
+    registros = extrair_cardapio(conteudo_pdf)
+
+    # 3. Verifica se foram gerados os 15 registros esperados.
     if len(registros) != 15:
         raise ValueError(
             f"Esperados 15 registros, mas foram gerados {len(registros)}."
         )
 
-    with open(arquivo_saida, "w", encoding="utf-8") as arquivo:
-        json.dump(registros, arquivo, ensure_ascii=False, indent=4)
+    # 4. Verifica se todas as refeições possuem itens.
+    for registro in registros:
+        if not registro.get("itens"):
+            raise ValueError(
+                f"Refeição sem itens encontrada: "
+                f"{registro.get('refeicao')} - {registro.get('data')}."
+            )
+
+    # 5. Garante que a pasta de destino exista.
+    arquivo_saida.parent.mkdir(parents=True, exist_ok=True)
+
+    # 6. Salva primeiro em um arquivo temporário.
+    arquivo_temporario = arquivo_saida.with_suffix(".tmp")
+
+    try:
+        with open(arquivo_temporario, "w", encoding="utf-8") as arquivo:
+            json.dump(
+                registros,
+                arquivo,
+                ensure_ascii=False,
+                indent=4
+            )
+
+        # 7. Substitui o JSON anterior somente após a gravação.
+        arquivo_temporario.replace(arquivo_saida)
+
+    finally:
+        # Remove o temporário caso ocorra algum erro.
+        if arquivo_temporario.exists():
+            arquivo_temporario.unlink()
 
     print(f"Cardápio atualizado em: {arquivo_saida}")
+
     return registros
 
 
 def main():
+    # python -m code_py.cardapio                      -> baixa o PDF do site do RU
+    # python -m code_py.cardapio arquivo.pdf          -> usa um PDF local
+    # python -m code_py.cardapio arquivo.pdf --diag   -> também imprime a posição de cada palavra
+    import sys
+
+    argumentos = [a for a in sys.argv[1:] if not a.startswith("--")]
+    global mostrar_diagnostico
+    mostrar_diagnostico = "--diag" in sys.argv
+
     try:
-        atualizar_cardapio()
+        if argumentos:
+            atualizar_cardapio(Path(argumentos[0]).read_bytes())
+        else:
+            atualizar_cardapio()
     except Exception as erro:
         print(f"Erro ao atualizar o cardápio: {erro}")
 

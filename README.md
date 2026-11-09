@@ -18,6 +18,7 @@ unb_fcte_plataforma_discente/
 │   ├── organizacoes.py                             # Mural de oportunidades e entidades
 │   ├── paginas.py                                  # Menus por perfil (Discente, Docente, Admin)
 │   ├── system.py                                   # Web scraper de turmas do SIGAA
+│   ├── tela.py                                     # Limpeza de tela, pausas, cabeçalhos e data/hora do terminal
 │   ├── turmas.py                                   # Matrículas, menções e cálculo de MP/IRA
 │   └── user.py                                     # Classes de usuário e validações (CPF, E-mail)
 ├── data/                                           # Arquivos de dados (.json e .csv)

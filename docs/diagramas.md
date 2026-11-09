@@ -98,7 +98,7 @@ classDiagram
 O GitHub não desenha PlantUML. Para ver a imagem, cole o código em <https://www.plantuml.com/plantuml>
 ou use a extensão "PlantUML" do VS Code.
 
-Legenda: branco = funciona no menu; amarelo = pronto no backend, sem menu ainda; cinza = próximas entregas.
+Todos os casos de uso estão disponíveis no menu do terminal.
 
 ```plantuml
 @startuml
@@ -112,6 +112,7 @@ actor Docente
 actor Admin
 actor "SIGAA" as SIGAA <<sistema>>
 actor "Site do RU" as RU <<sistema>>
+actor "Site da SAA" as SAA <<sistema>>
 
 Usuario --|> Visitante
 Discente --|> Usuario
@@ -122,26 +123,31 @@ rectangle "Plataforma UnB FCTE" {
   ' ---------- portal público ----------
   usecase "Consultar cardápio do RU" as UC_RU
   usecase "Consultar turmas do SIGAA" as UC_TURMAS
+  usecase "Consultar cursos e organizações" as UC_CURSOS
+  usecase "Consultar calendário acadêmico" as UC_CALENDARIO
+  usecase "Consultar acervo da biblioteca" as UC_ACERVO
 
   ' ---------- acesso ----------
   usecase "Fazer login" as UC_LOGIN
   usecase "Trocar senha inicial" as UC_SENHA
   usecase "Completar perfil" as UC_PERFIL
   usecase "Ver meu perfil" as UC_VERPERFIL
+  usecase "Reservar, renovar e devolver livros" as UC_EMPRESTIMO
 
   ' ---------- discente ----------
   usecase "Consultar oportunidades\n(extensão, pesquisa, estágio, monitoria)" as UC_OPS
   usecase "Demonstrar / retirar interesse" as UC_INTERESSE
   usecase "Conhecer EJs, atléticas e equipes" as UC_ENTIDADES
-  usecase "Ver turmas matriculadas" as UC_MINHAS #LightYellow
-  usecase "Consultar MP e IRA" as UC_IRA #LightYellow
+  usecase "Ver turmas matriculadas" as UC_MINHAS
+  usecase "Consultar MP e IRA" as UC_IRA
 
   ' ---------- docente ----------
   usecase "Publicar oportunidade" as UC_PUBLICAR
   usecase "Editar / encerrar publicação" as UC_EDITAR
   usecase "Ver interessados" as UC_INTERESSADOS
-  usecase "Ver turmas ofertadas e créditos" as UC_OFERTADAS #LightYellow
-  usecase "Lançar nota" as UC_NOTA #LightYellow
+  usecase "Ver turmas ofertadas e créditos" as UC_OFERTADAS
+  usecase "Ver alunos da turma" as UC_ALUNOS
+  usecase "Lançar nota" as UC_NOTA
 
   ' ---------- admin ----------
   usecase "Gerar acesso para um e-mail" as UC_ACESSO
@@ -149,15 +155,18 @@ rectangle "Plataforma UnB FCTE" {
   usecase "Cadastrar entidade" as UC_CADENT
   usecase "Atualizar cardápio do RU" as UC_ATUALRU
   usecase "Atualizar turmas do SIGAA" as UC_ATUALSIGAA
-  usecase "Matricular aluno em turma" as UC_MATRICULAR #LightYellow
-  usecase "Ligar turma a docente" as UC_ATRIBUIR #LightYellow
-
-  ' ---------- próximas entregas ----------
-  usecase "Usar agenda dinâmica" as UC_AGENDA <<próxima entrega>> #LightGray
+  usecase "Matricular aluno em turma" as UC_MATRICULAR
+  usecase "Ligar turma a docente" as UC_ATRIBUIR
+  usecase "Listar discentes e docentes" as UC_USUARIOS
+  usecase "Atualizar calendário acadêmico" as UC_ATUALCAL
+  usecase "Cadastrar livro" as UC_LIVRO
 }
 
 Visitante --> UC_RU
 Visitante --> UC_TURMAS
+Visitante --> UC_CURSOS
+Visitante --> UC_CALENDARIO
+Visitante --> UC_ACERVO
 
 Usuario --> UC_LOGIN
 UC_SENHA .> UC_LOGIN : <<extend>>\nprimeiro acesso
@@ -169,14 +178,15 @@ Discente --> UC_INTERESSE
 Discente --> UC_ENTIDADES
 Discente --> UC_MINHAS
 Discente --> UC_IRA
-Discente --> UC_AGENDA
+Discente --> UC_EMPRESTIMO
 
 Docente --> UC_PUBLICAR
 Docente --> UC_EDITAR
 Docente --> UC_INTERESSADOS
 Docente --> UC_OFERTADAS
+Docente --> UC_ALUNOS
 Docente --> UC_NOTA
-Docente --> UC_AGENDA
+Docente --> UC_EMPRESTIMO
 
 Admin --> UC_ACESSO
 Admin --> UC_PUBLICAR
@@ -187,9 +197,13 @@ Admin --> UC_ATUALRU
 Admin --> UC_ATUALSIGAA
 Admin --> UC_MATRICULAR
 Admin --> UC_ATRIBUIR
+Admin --> UC_USUARIOS
+Admin --> UC_ATUALCAL
+Admin --> UC_LIVRO
 
 UC_ATUALRU --> RU
 UC_ATUALSIGAA --> SIGAA
+UC_ATUALCAL --> SAA
 @enduml
 ```
 
@@ -198,4 +212,4 @@ Observações:
   Discente, docente e admin herdam o login de "Usuário logado".
 - **`<<extend>>`:** trocar a senha e completar o perfil só acontecem dentro do login, e só quando é preciso
   (primeiro acesso, ou alguém que ainda não tem perfil). O admin nunca completa perfil.
-- **Sistemas externos:** o SIGAA e o site do RU são atores secundários; o sistema busca dados neles.
+- **Sistemas externos:** o SIGAA, o site do RU e o site da SAA (calendário) são atores secundários; o sistema busca dados neles.

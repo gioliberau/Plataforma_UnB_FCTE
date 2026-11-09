@@ -4,40 +4,85 @@ from datetime import date, datetime
 
 # ----------------------------------------------- #
 
+from . import banco
+from . import turmas as tr
+from .horarios import legivel
+from .user import semestre_atual
+
 from . import organizacoes as ops
 from . import consultas_publicas as cp
 from .system import SistemaFCTE
+from .tela import limpar_tela, pausar, titulo_pagina, titulo_acao
+
+
+def _indice(valor):
+    # MP e IRA: None enquanto não houver notas.
+    return 'sem notas ainda' if valor is None else f'{valor:.2f}'
+def _rotulo_turma(turma):
+    return (
+        f"{turma['codigo_disciplina']} - {turma['nome_disciplina']} "
+        f"| Turma {turma['numero_turma']} | {turma['periodo']}"
+    )
+
 
 # ============================= { MENU GENÉRICO } ============================= #
 
+# Avisa o menu "pai" que a ação escolhida abriu outro menu.
+_submenu_aberto = False
+
 def abrir_menu(titulo, opcoes, saida='Voltar', ativo=lambda: True, cabecalho=None):
- 
-    while ativo():
-        lista = opcoes()
- 
-        if cabecalho:
-            cabecalho()
- 
-        print(f'\n===== {titulo} =====')
- 
-        for numero, (rotulo, _) in enumerate(lista, start=1):
-            print(f'{numero} - {rotulo}')
- 
-        print(f'0 - {saida}')
- 
-        escolha = input('Escolha uma opção: ').strip()
- 
-        if escolha == '0':
-            break
- 
-        if not escolha.isdigit() or not 1 <= int(escolha) <= len(lista):
-            print('Opção inválida. Tente novamente.')
-            continue
- 
-        try:
-            lista[int(escolha) - 1][1]()
-        except (ValueError, PermissionError, RuntimeError) as erro:
-            print(f'Não foi possível concluir: {erro}')
+
+    global _submenu_aberto
+    aviso = ''
+    # Mensagem mostrada na próxima tela (a tela é limpa a cada volta do loop)
+
+    try:
+        while ativo():
+            lista = opcoes()
+
+            limpar_tela()                       #  Cada menu é uma "página" nova.
+            titulo_pagina(titulo)               
+
+            if cabecalho:
+                cabecalho()
+
+            print()
+
+            for numero, (rotulo, _) in enumerate(lista, start=1):
+                print(f'{numero} - {rotulo}')
+
+            print(f'0 - {saida}')
+
+            if aviso:
+                print(f'\n{aviso}')
+                aviso = ''
+
+            escolha = input('\nEscolha uma opção: ').strip()
+
+            if escolha == '0':
+                break
+
+            if not escolha.isdigit() or not 1 <= int(escolha) <= len(lista):
+                aviso = 'Opção inválida. Tente novamente.'
+                continue
+
+            rotulo, acao = lista[int(escolha) - 1]
+
+            _submenu_aberto = False
+            limpar_tela()                       # A ação também aparece numa tela limpa.
+            titulo_acao(titulo, rotulo)         
+            print()
+
+            try:
+                acao()
+            except (ValueError, PermissionError, RuntimeError) as erro:
+                print(f'Não foi possível concluir: {erro}')
+
+            # Se a ação só imprimiu algo, espera o usuário ler antes de limpar a tela.
+            if not _submenu_aberto and ativo():
+                pausar()
+    finally:
+        _submenu_aberto = True
 
 # ============================= { PÁGINA BASE } ============================= #
 
@@ -193,18 +238,8 @@ class PaginaPerfil(ABC):
 
     @staticmethod
     def _mostrar_entidades(lista):
-        if not lista:
-            print('Nenhuma entidade cadastrada.')
-            return
-
-        print()
-
-        for entidade in lista:
-            tipo = ops.tipos_entidades_fixas.get(entidade['tipo'], entidade['tipo'])
-            print(f'- {entidade["nome"]} ({tipo})')
-            print(f'    {entidade["instagram_link"]}')
-
-        print()
+        # Cards completos, agrupados por tipo (ver organizacoes.formatar_lista_entidades).
+        print(ops.formatar_lista_entidades(lista))
 
 
 # ============================= { PÁGINA DO DISCENTE } ============================= #
@@ -268,6 +303,11 @@ class PaginaDiscente(PaginaPerfil):
     def _retirar_interesse(self):
         ops.retirar_interesse(self._perfil, self._ler_id())
         print('Interesse removido.')
+    
+    def _ver_perfil(self):
+        super()._ver_perfil()
+        print(f'MP: {_indice(tr.mp(self._perfil))}')
+        print(f'IRA: {_indice(tr.ira(self._perfil))}')
 
 
 # ============================= { PÁGINA DO DOCENTE } ============================= #
@@ -328,6 +368,19 @@ class PaginaDocente(PaginaPerfil):
         ops.editar(self._perfil, id_oportunidade, **campos)
         print('Publicação atualizada!')
 
+    def _ver_perfil(self):
+        super()._ver_perfil()
+        ano, semestre = semestre_atual()
+        extensao = ops.listar_extensao(self._perfil)
+        print(
+            f'Créditos ofertados em {ano}.{semestre}: '
+            f'{tr.creditos_ofertados(self._perfil)}'
+        )
+        print(
+            f'Projetos de extensão: '
+            f'{", ".join(o.titulo for o in extensao) or "nenhum"}'
+        )
+
 
 # ============================= { PÁGINA DO ADMIN } ============================= #
 
@@ -377,7 +430,18 @@ class PaginaAdmin(PaginaPerfil):
         nome = input('Nome: ')
         link = input('Link do Instagram: ')
 
-        ops.cadastrar_entidade_fixa(self._conta, nome, tipos[int(escolha) - 1], link)
+        
+        area = input('Área/curso de atuação (opcional): ')
+        descricao = input('Descrição (opcional): ')
+        como_participar = input('Como participar (opcional): ')
+        contato = input('Contato, e-mail (opcional): ')
+
+        ops.cadastrar_entidade_fixa(
+            self._conta, nome, tipos[int(escolha) - 1], link,
+            area=area, descricao=descricao,
+            como_participar=como_participar, contato=contato
+        )
+        
         print('Entidade cadastrada!')
 
     def _remover(self):
@@ -403,6 +467,14 @@ class PaginaCardapio(PaginaPerfil):
     @property
     def titulo(self):
         return 'CARDÁPIO DO RU - GAMA'
+
+    def executar(self):
+        # O PDF do RU muda toda semana: se o cardápio guardado já passou, baixa o novo.
+        cp.garantir_cardapio_atualizado(
+            ao_tentar=lambda: print('Buscando o cardápio mais recente no site do RU...')
+        )
+
+        super().executar()
  
     @property
     def _eh_admin(self):
@@ -502,22 +574,12 @@ class PaginaTurmas(PaginaPerfil):
         return getattr(self._conta, 'eh_admin', False)
  
     @property
+    def _eh_discente(self):
+        return getattr(self._perfil, 'tipo_usuario', None) == 'discente'
+ 
+    @property
     def _eh_docente(self):
         return getattr(self._perfil, 'tipo_usuario', None) == 'docente'
- 
-    def _opcoes(self):
-        opcoes = [
-            ('Buscar turmas (disciplina, código ou docente)', self._buscar),
-            ('Listar todas as turmas do semestre atual', self._listar_todas),
-        ]
- 
-        if self._eh_docente:
-            opcoes.append(('Minhas turmas', self._minhas))
- 
-        if self._eh_admin:
-            opcoes.append(('Atualizar turmas a partir do SIGAA', self._atualizar))
- 
-        return opcoes
  
     @staticmethod
     def _ler_periodo():
@@ -579,6 +641,168 @@ class PaginaTurmas(PaginaPerfil):
             total = self._sistema.atualizar_turmas_sigaa(self._conta, ano, semestre)
             print(f'Turmas atualizadas ({total} turmas gravadas).')
 
+    def _opcoes(self):
+        opcoes = [
+            ('Buscar turmas (disciplina, código ou docente)', self._buscar),
+            ('Listar todas as turmas do semestre atual', self._listar_todas),
+        ]
+        if self._eh_discente:
+            opcoes.append(('Minhas turmas e notas', self._minhas_discente))
+        if self._eh_docente:
+            opcoes += [
+                ('Minhas turmas', self._minhas_docente),
+                ('Alunos de uma turma', self._alunos),
+                ('Lançar nota', self._lancar_nota),
+            ]
+        if self._eh_admin:
+            opcoes += [
+                ('Atualizar turmas a partir do SIGAA', self._atualizar),
+                ('Listar discentes e docentes', self._listar_usuarios),
+                ('Matricular discente em turma', self._matricular),
+                ('Ligar turma a docente', self._atribuir_docente),
+            ]
+        return opcoes
+
+    # ========== { DISCENTE } ========== #
+    def _minhas_discente(self):
+        matriculas = tr.turmas_do_discente(self._perfil)
+        if not matriculas:
+            print('Você ainda não está matriculado(a) em nenhuma turma.')
+            return
+        print()
+        for matricula in matriculas:
+            print(matricula)
+            print(f"    Horário: {legivel(matricula.turma['horario'])}")
+        print(
+            f'\nMP: {_indice(tr.mp(self._perfil))} '
+            f'| IRA: {_indice(tr.ira(self._perfil))}'
+        )
+
+    # ========== { DOCENTE } ========== #
+    def _escolher_minha_turma(self):
+        turmas = tr.turmas_do_docente(self._perfil)
+        if not turmas:
+            raise ValueError(
+                'Nenhuma turma ligada a você.' 
+
+                'Peça a um admin para fazer a ligação.'
+            )
+        return self._escolher(
+            'Turma:',
+            {tr.chave_turma(t): _rotulo_turma(t) for t in turmas}
+        )
+
+
+    def _minhas_docente(self):
+        turmas = tr.turmas_do_docente(self._perfil)
+        if not turmas:
+            print('Nenhuma turma ligada a você.')
+            return
+        print()
+        for turma in turmas:
+            print(self._sistema.formatar_turma(turma))
+            print()
+
+
+    def _alunos(self):
+        alunos = tr.alunos_da_turma(
+            self._perfil,
+            self._escolher_minha_turma()
+        )
+        if not alunos:
+            print('Nenhum aluno matriculado nesta turma.')
+            return
+        print(f'\n{len(alunos)} aluno(s):')
+        for aluno in alunos:
+            nota = (
+                'sem nota'
+                if aluno['nota'] is None
+                else f"{aluno['nota']:.1f} ({tr.mencao(aluno['nota'])})"
+            )
+            print(
+                f"- {aluno['nome']} | Matrícula: "
+                f"{aluno['matricula']} | {nota}"
+            )
+
+
+    def _lancar_nota(self):
+        chave = self._escolher_minha_turma()
+        alunos = tr.alunos_da_turma(self._perfil, chave)
+        if not alunos:
+            raise ValueError('Nenhum aluno matriculado nesta turma.')
+        matricula = self._escolher(
+            'Aluno:',
+            {
+                aluno['matricula']: (
+                    f"{aluno['nome']} ({aluno['matricula']})"
+                )
+                for aluno in alunos
+            }
+        )
+        texto = input('Nota (0 a 10): ').strip().replace(',', '.')
+        try:
+            nota = float(texto)
+        except ValueError:
+            raise ValueError('Digite um número, por exemplo 7.5.')
+        tr.lancar_nota(self._perfil, chave, matricula, nota)
+        print(f'Nota {nota:.1f} ({tr.mencao(nota)}) lançada.')
+
+
+    # ========== { ADMINISTRADOR } ========== #
+    def _listar_usuarios(self):
+        for tipo in ('discente', 'docente'):
+            perfis = banco.listar_perfis(tipo)
+            print(f'\n{tipo.capitalize()}s ({len(perfis)}):')
+            for perfil in perfis:
+                print(
+                    f'- {perfil.nome} | Matrícula: {perfil.id_user} '
+                    f'| {perfil.curso_ou_area}'
+                )
+
+    def _escolher_turma_sigaa(self):
+        filtro = input('Código ou nome da disciplina: ').strip()
+        if not filtro:
+            raise ValueError('Digite ao menos uma palavra para buscar.')
+        ano, semestre = self._ler_periodo()
+        turmas = self._sistema.listar_turmas(ano, semestre, filtro)
+        if not turmas:
+            raise ValueError(
+                'Nenhuma turma encontrada. '
+                'Atualize as turmas do SIGAA ou mude a busca.'
+            )
+        if len(turmas) > SistemaFCTE.limite_turmas:
+            raise ValueError(
+                f'{len(turmas)} turmas encontradas. Refine a busca.'
+            )
+        return self._escolher(
+            'Turma:',
+            {tr.chave_turma(t): _rotulo_turma(t) for t in turmas}
+        )
+
+
+    def _matricular(self):
+        matricula = input('Matrícula do discente: ').strip()
+        chave = self._escolher_turma_sigaa()
+        tr.matricular(self._conta, matricula, chave)
+        print('Discente matriculado(a)!')
+
+
+    def _atribuir_docente(self):
+        docentes = banco.listar_perfis('docente')
+        if not docentes:
+            raise ValueError('Nenhum docente com perfil cadastrado.')
+        id_docente = self._escolher(
+            'Docente:',
+            {
+                docente.id_user: (
+                    f'{docente.nome} ({docente.id_user})'
+                )
+                for docente in docentes
+            }
+        )
+        chave = self._escolher_turma_sigaa()
+        tr.atribuir_docente(self._conta, id_docente, chave)
+        print('Turma ligada ao docente!')
 
 # ============================= { FÁBRICA } ============================= #
 

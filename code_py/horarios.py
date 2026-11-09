@@ -67,3 +67,10 @@ def traduzir(codigo):
 def descrever(codigo):
     # Texto legível: 'segunda-feira 14:00-15:50; quarta-feira 14:00-15:50'
     return '; '.join(f'{dias[dia]} {inicio}-{fim}' for dia, inicio, fim in traduzir(codigo))
+
+def legivel(codigo):
+    # Exibe o código acompanhado de sua tradução.
+    try:
+        return f'{codigo} ({descrever(codigo)})'
+    except ValueError:
+        return codigo

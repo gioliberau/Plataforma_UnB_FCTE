@@ -1,3 +1,4 @@
+from datetime import datetime
 from getpass import getpass     # Lê a senha no terminal sem exibi-la.
 
 from .login import autenticar, trocar_senha, gerar_acesso, tipos_usuario, Sessao
@@ -6,6 +7,7 @@ from .user import cursos_disponiveis
 from .paginas import abrir_menu, criar_pagina, PaginaCardapio, PaginaTurmas
 from .biblioteca import PaginaBiblioteca          
 from . import consultas_publicas as cp
+from .tela import limpar_tela, pausar, linha, formatar_data_hora, formatar_duracao
 
 
 # ============================= { INTERFACE DO SISTEMA } ============================= #
@@ -22,10 +24,17 @@ class InterfaceFCTE:
                 ('Fazer login', self.__fazer_login),
                 ('Acessar portal público', self.__portal_publico),
             ],
-            saida='Sair'
+            saida='Sair',
+            cabecalho=self.__boas_vindas
         )
  
         print('Encerrando o sistema...')
+
+    @staticmethod
+    def __boas_vindas():
+        print('  Bem-vindo(a) ao Portal Discente da UnB FCTE!')
+        print(f'  Hoje: {formatar_data_hora(datetime.now())}')
+
 
 
     def __fazer_login(self):
@@ -59,8 +68,6 @@ class InterfaceFCTE:
 
         # Inicia a sessão com o usuário autenticado.
         self.__sessao.iniciar(conta, perfil)
-
-        print(f'\nBem-vindo(a), {perfil.nome if perfil else conta.email}!')
 
         # Direciona o usuário para o menu correspondente ao seu tipo.
         self.__abrir_menu_usuario()
@@ -164,21 +171,16 @@ class InterfaceFCTE:
             lambda: [
                 (rotulo, lambda tipo=tipo: self.__mostrar_organizacoes(tipo))
                 for tipo, rotulo in cp.tipos_organizacoes.items()
-            ] + [('Todas', lambda: self.__mostrar_organizacoes(None))]
+            ] + [
+                ('Todas', lambda: self.__mostrar_organizacoes(None)),
+                ('Buscar por nome ou área', self.__buscar_organizacoes),
+            ],
+            cabecalho=lambda: print(cp.resumo_organizacoes())
         )
  
     @staticmethod
     def __mostrar_organizacoes(tipo):
-        organizacoes = cp.listar_organizacoes(tipo)
- 
-        if not organizacoes:
-            print('Nenhuma organização cadastrada.')
-            return
- 
-        print()
- 
-        for organizacao in organizacoes:
-            print(cp.formatar_organizacao(organizacao))
+        print(cp.formatar_lista_organizacoes(cp.listar_organizacoes(tipo)))
  
 
     def __atualizar_calendario(self):
@@ -189,6 +191,13 @@ class InterfaceFCTE:
         total = cp.atualizar_calendario(self.__sessao.usuario)
         print(f'Calendário atualizado ({total} datas lidas).')
 
+
+    @staticmethod
+    def __buscar_organizacoes():                                                
+        termo = input('Buscar por nome, área ou tipo: ')
+        print()
+
+        print(cp.formatar_lista_organizacoes(cp.buscar_organizacoes(termo)))
 
     def __consultar_calendario(self):
         periodos = cp.periodos_calendario()
@@ -217,13 +226,21 @@ class InterfaceFCTE:
         perfil = self.__sessao.perfil
  
         def cabecalho():
+            # Boas-vindas + dados da sessão, no topo de toda vez que o menu é desenhado.
+            inicio = self.__sessao.iniciada_em
+
+            print(f'  Bem-vindo(a), {perfil.nome if perfil else conta.email}!')
+            print(f'  Sessão iniciada em {formatar_data_hora(inicio)}')
+            print(f'  Tempo de sessão: {formatar_duracao(inicio)}')
+            print(linha('─'))
+
             if perfil is not None:
-                print(f'\nNome: {perfil.nome}')
-                print(f'Matrícula: {perfil.id_user}')
-                print(f'Curso/Área: {perfil.curso_ou_area}')
+                print(f'  Nome: {perfil.nome}')
+                print(f'  Matrícula: {perfil.id_user}')
+                print(f'  Curso/Área: {perfil.curso_ou_area}')
  
-            print(f'E-mail: {conta.email}')
-            print(f'Tipo: {conta.tipo_usuario}')
+            print(f'  E-mail: {conta.email}')
+            print(f'  Tipo: {conta.tipo_usuario}')
  
         def opcoes():
             lista = [
@@ -239,8 +256,12 @@ class InterfaceFCTE:
  
         abrir_menu('MENU DO USUÁRIO', opcoes, saida='Sair da conta', cabecalho=cabecalho)
  
+        duracao = formatar_duracao(self.__sessao.iniciada_em)
         self.__sessao.encerrar()
-        print('Logout realizado com sucesso!')
+        
+        limpar_tela()                                              
+        print(f'Logout realizado com sucesso! Sessão de {duracao}.')
+        pausar()                                                   
  
  
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 import json
 import unicodedata
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # ----------------------------------------------- #
@@ -62,6 +62,11 @@ prefixos_com_dieta = ('complemento_', 'prato_principal_')
 
 limite_turmas = 30
 
+# Atualização automática do cardápio quando ele já passou.
+atualizacao_automatica = True
+intervalo_tentativas = timedelta(hours=1)
+_ultima_tentativa_cardapio = None
+
 _sistema_cache = None
 
 
@@ -109,7 +114,8 @@ def carregar_cardapio():
     if not isinstance(registros, list):
         raise RuntimeError('O arquivo do cardápio está num formato inesperado.')
 
-    return registros
+    from .cardapio import sanitizar_registro
+    return [sanitizar_registro(r) for r in registros]
 
 
 def datas_disponiveis():
@@ -169,6 +175,43 @@ def ultima_atualizacao_cardapio():
 
     from datetime import datetime
     return datetime.fromtimestamp(arquivo_cardapio.stat().st_mtime)
+
+
+def cardapio_desatualizado():
+    # True se não há dia de hoje em diante no cardápio guardado.
+    datas = datas_disponiveis()
+    return not datas or datas[-1] < date.today().isoformat()
+
+
+def garantir_cardapio_atualizado(ao_tentar=None):
+    # Baixa o PDF do site do RU sozinho quando o cardápio guardado já passou.
+    # Nunca levanta erro: se estiver sem internet ou o site mudou, o cardápio
+    # antigo continua valendo. Tenta no máximo 1 vez por hora.
+    global _ultima_tentativa_cardapio
+
+    if not atualizacao_automatica or not cardapio_desatualizado():
+        return False
+
+    agora = datetime.now()
+
+    if (
+        _ultima_tentativa_cardapio
+        and agora - _ultima_tentativa_cardapio < intervalo_tentativas
+    ):
+        return False
+
+    _ultima_tentativa_cardapio = agora
+
+    if ao_tentar:
+        ao_tentar()
+
+    try:
+        from . import cardapio
+        cardapio.atualizar_cardapio()
+    except Exception:
+        return False
+
+    return True
 
 
 def atualizar_cardapio_ru(conta):
@@ -258,11 +301,16 @@ def listar_organizacoes(tipo=None):
 
 
 def formatar_organizacao(entidade):
-    tipo = ops.tipos_entidades_fixas.get(entidade['tipo'], entidade['tipo'])
+    return ops.formatar_entidade(entidade)
 
-    return f"- {entidade['nome']} ({tipo})\n    {entidade['instagram_link']}"
+def formatar_lista_organizacoes(lista):                     
+    return ops.formatar_lista_entidades(lista)
 
+def resumo_organizacoes():                                  
+    return ops.resumo_entidades(listar_organizacoes())
 
+def buscar_organizacoes(texto):                             
+    return ops.buscar_entidades(texto)
 
 
 # ============================= { CALENDÁRIO ACADÊMICO } ============================= #

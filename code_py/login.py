@@ -3,6 +3,7 @@ from contextlib import closing  # Fechamento da conexão após o uso.
 from getpass import getpass     # Lê a senha no terminal sem exibi-la.
 import hashlib
 import secrets
+from datetime import datetime
 
 # ----------------------------------------------- #
 
@@ -120,8 +121,9 @@ def exigir_admin(conta):
 
 class Sessao:
     def __init__(self):
-        self.__usuario = None   # Inicialmente sem nenhum usuario conectado (é a Conta)
-        self.__perfil = None    # Discente/Docente do usuário (admin não tem perfil)
+        self.__usuario = None           # Inicialmente sem nenhum usuario conectado (é a Conta)
+        self.__perfil = None            # Discente/Docente do usuário (admin não tem perfil)
+        self.__iniciada_em = None       # Data/hora em que o login foi concluído
  
     # ========== { GETTER } ========== #
  
@@ -129,6 +131,10 @@ class Sessao:
     def usuario(self):
         return self.__usuario   # Usuario conectado
  
+    @property
+    def iniciada_em(self):      
+        return self.__iniciada_em
+
     @property
     def perfil(self):
         return self.__perfil
@@ -150,10 +156,12 @@ class Sessao:
  
         self.__usuario = usuario
         self.__perfil = perfil
+        self.__iniciada_em = datetime.now()
  
     def encerrar(self):
         self.__usuario = None
         self.__perfil = None
+        self.__iniciada_em = None
 
 
 # ============================= { FUNÇÕES AUXILIARES } ============================= #

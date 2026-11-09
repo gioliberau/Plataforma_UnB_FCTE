@@ -97,9 +97,9 @@ def ler_eventos(texto_pdf):
 
     # Mapeamento de regras de Regex para descrições estandardizadas
     regras = [
-        (r'solicitação de matrícula.*?(\d{2}/\d{2})\s+a\s+(\d{2}/\d{2}/\d{4})', 'Solicitação de matrícula (SIGAA)'),
+        (r'solicitação de matrícula.*?(\d{2}/\d{2})\s+até.*?(\d{2}/\d{2}/\d{4})', 'Solicitação de matrícula (SIGAA)'),
         (r'Resultado da matrícula até.*?(\d{2}/\d{2}/\d{4})', 'Resultado da matrícula (até 12h)'),
-        (r'Solicitação de rematrícula.*?(\d{2}/\d{2})\s+e\s+(\d{2}/\d{2}/\d{4})', 'Rematrícula (SIGAA)'),
+        (r'solicitação de rematrícula.*?(\d{2}/\d{2}).*?até.*?(\d{2}/\d{2}/\d{4})', 'Rematrícula (SIGAA)'),
         (r'Resultado da rematrícula até.*?(\d{2}/\d{2}/\d{4})', 'Resultado da rematrícula (até 12h)'),
         (r'Matrícula Extraordinária.*?(\d{2}/\d{2})\s+até.*?(\d{2}/\d{2}/\d{4})', 'Matrícula extraordinária'),
         (r'Início:\s*(\d{2}/\d{2}/\d{4}).*?Término:\s*(\d{2}/\d{2}/\d{4})', 'Período de aulas'),

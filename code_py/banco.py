@@ -119,6 +119,19 @@ def buscar_perfil(email):
 
     return __reconstruir(dados)
 
+def listar_perfis(tipo):
+    # Retorna todos os perfis de um tipo, organizados por nome.
+    with closing(conectar()) as conexao:
+        linhas = conexao.execute(
+            '''
+            SELECT * FROM usuarios
+            WHERE tipo_usuario = ?
+            ORDER BY nome
+            ''',
+            (tipo,)
+        ).fetchall()
+    return [__reconstruir(linha) for linha in linhas]
+
 
 # ============================= { CADASTRO } ============================= #
 

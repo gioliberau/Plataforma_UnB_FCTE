@@ -13,6 +13,7 @@ import unicodedata
 from .banco import conectar
 from .login import exigir_admin
 from .user import semestre_atual, cursos_disponiveis
+from .horarios import legivel
 
 # ============================= { SIGAA: LEITURA DA PÁGINA PÚBLICA } ============================= #
 
@@ -317,7 +318,7 @@ class SistemaFCTE:
             f"{turma.get('codigo_disciplina')} - {turma.get('nome_disciplina')} "
             f"| Turma {turma.get('numero_turma')} | {turma.get('periodo')}\n"
             f"    Docente: {turma.get('docente')}{carga}\n"
-            f"    Horário: {turma.get('horario')} | Local: {turma.get('local')}\n"
+            f"    Horário: {legivel(turma.get('horario'))} | Local: {turma.get('local')}\n"
             f"    Vagas ocupadas: {turma.get('vagas_ocupadas')} de {turma.get('vagas_ofertadas')}"
         )
 

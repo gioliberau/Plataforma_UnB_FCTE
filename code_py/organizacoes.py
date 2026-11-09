@@ -1,11 +1,14 @@
 from contextlib import closing
 from datetime import date, datetime
 import sqlite3
+import textwrap
+import unicodedata
 
 # ----------------------------------------------- #
 
 from .banco import conectar
 from .login import exigir_admin
+from . import tela
 
 # ============================= { CONFIGURAÇÃO } ============================= #
 
@@ -24,6 +27,27 @@ tipos_entidades_fixas = {
     'equipe_competicao': 'Equipe de Competição',
 }
 
+# Texto padrão de cada tipo: usado quando a entidade não tem descrição / "como participar" próprios.
+info_tipos = {
+    'empresa_junior': {
+        'sobre': 'Associação civil sem fins lucrativos, gerida por estudantes de graduação, '
+                 'que presta serviços e consultoria na área do curso, com orientação de professores.',
+        'como_participar': 'Costuma ser por processo seletivo; acompanhe o Instagram para saber quando abre.',
+    },
+    'atletica': {
+        'sobre': 'Entidade estudantil esportiva e social: organiza times, treinos, torneios e eventos para os alunos.',
+        'como_participar': 'Procure a atlética no Instagram para saber como entrar nos times e nos eventos.',
+    },
+    'equipe_competicao': {
+        'sobre': 'Grupo de estudantes que projeta, constrói e testa protótipos para competições universitárias de engenharia.',
+        'como_participar': 'Em geral por processo seletivo divulgado nas redes; veja o Instagram da equipe.',
+    },
+}
+
+# Colunas opcionais da tabela entidades_fixas (além de nome, tipo e instagram_link).
+campos_extras = ('area', 'descricao', 'como_participar', 'contato')
+
+
 # Categorias de oportunidades que cada perfil enxerga no mural
 categorias_por_perfil = {
     'discente': tuple(categorias_oportunidades),
@@ -39,16 +63,21 @@ entidades_fixas_iniciais = [
         'nome': "Orc'estra",
         'tipo': 'empresa_junior',
         'instagram_link': 'https://instagram.com/ser.orcestra/',
+        'area': 'Gamificação',
     },
     {
         'nome': "Zenit",
         'tipo': 'empresa_junior',
         'instagram_link': 'https://instagram.com/zenitaerospace/',
+        'area': 'Engenharia Aeroespacial',
+        'descricao': 'Serviços como modelagem 2D/3D, consultoria e cursos de pilotagem de drones.',
+
     },
     {
         'nome': "Matriz",
         'tipo': 'empresa_junior',
         'instagram_link': 'https://instagram.com/matrizenergia/',
+        'area': 'Engenharia de Energia',
     },
     {
         'nome': "EletroJun",
@@ -64,16 +93,19 @@ entidades_fixas_iniciais = [
         'nome': 'UnBaja',
         'tipo': 'equipe_competicao',
         'instagram_link': 'https://instagram.com/unbaja/',
+        'descricao': 'Projeta e constrói um veículo off-road para a competição Baja SAE.',
     },
     {
         'nome': 'Mamutes do Cerrado',
         'tipo': 'equipe_competicao',
         'instagram_link': 'https://instagram.com/mmtsdocerrado/',
+        'descricao': 'Equipe de aeromodelismo.',
     },
     {
         'nome': 'Gama CubeDesign',
         'tipo': 'equipe_competicao',
         'instagram_link': 'https://instagram.com/gamacubedesign/',
+        'descricao': 'Equipe de desenvolvimento de satélites.',
     },
     {
         'nome': 'FGR',
@@ -84,6 +116,7 @@ entidades_fixas_iniciais = [
         'nome': 'EDRA',
         'tipo': 'equipe_competicao',
         'instagram_link': 'https://instagram.com/edraunb/',
+        'descricao': 'Equipe de drones.',
     },
     {
         'nome': 'Ares',
@@ -94,11 +127,13 @@ entidades_fixas_iniciais = [
         'nome': 'Titans',
         'tipo': 'equipe_competicao',
         'instagram_link': 'https://instagram.com/robotictitans/',
+        'descricao': 'Equipe de robótica.',
     },
     {
         'nome': 'Capital Rocket Team',
         'tipo': 'equipe_competicao',
         'instagram_link': 'https://instagram.com/capitalrocketteam/',
+        'descricao': 'Equipe de foguetes de sondagem.',
     },
 ]
 
@@ -246,7 +281,7 @@ class Oportunidade:
 
 # ============================= { ENTIDADES FIXAS } ============================= #
 
-def cadastrar_entidade_fixa(conta, nome, tipo, instagram_link):
+def cadastrar_entidade_fixa(conta, nome, tipo, instagram_link, area=None, descricao=None, como_participar=None, contato=None):
     # Cadastra manualmente uma nova entidade fixa no catálogo (se necessário).
     exigir_admin(conta)
     _popular_entidades_fixas()      # senão a lista padrão nunca entraria depois do primeiro cadastro
@@ -264,31 +299,58 @@ def cadastrar_entidade_fixa(conta, nome, tipo, instagram_link):
 
     nome = nome.strip()
 
+
+    # Dados extras são opcionais: vazio vira None
+    area = _limpar_opcional(area, 'A área', 80)
+    descricao = _limpar_opcional(descricao, 'A descrição', 300)
+    como_participar = _limpar_opcional(como_participar, 'O campo "como participar"', 300)
+    contato = _limpar_opcional(contato, 'O contato', 120)
+
+
     with closing(conectar()) as conexao, conexao:
         cursor = conexao.execute(
             '''
-            INSERT INTO entidades_fixas (nome, tipo, instagram_link)
-            VALUES (?, ?, ?)
+            INSERT INTO entidades_fixas (nome, tipo, instagram_link, area, descricao, como_participar, contato)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ''',
-            (nome, tipo, instagram_link.strip())
+            (nome, tipo, instagram_link.strip(), area, descricao, como_participar, contato)
         )
         return cursor.lastrowid
 
 
 def _popular_entidades_fixas():
-    # Insere as entidades padrão caso a tabela esteja limpa.
-    with closing(conectar()) as conexao:
+    # 1) Cria as colunas extras em bancos antigos; 
+    # 2) insere o catálogo se a tabela estiver vazia;
+    # 3) completa só os campos VAZIOS das entidades padrão (o que o admin cadastrou nunca é sobrescrito).
+
+    with closing(conectar()) as conexao, conexao:
+        colunas = {coluna['name'] for coluna in conexao.execute('PRAGMA table_info(entidades_fixas)')}
+
+        for campo in campos_extras:
+            if campo not in colunas:
+                conexao.execute(f'ALTER TABLE entidades_fixas ADD COLUMN {campo} TEXT')
+
         total = conexao.execute('SELECT COUNT(*) FROM entidades_fixas').fetchone()[0]
 
         if total == 0:
-            with conexao:
-                conexao.executemany(
-                    '''
-                    INSERT INTO entidades_fixas (nome, tipo, instagram_link)
-                    VALUES (:nome, :tipo, :instagram_link)
-                    ''',
-                    entidades_fixas_iniciais
-                )
+            conexao.executemany(
+                '''
+                INSERT INTO entidades_fixas
+                    (nome, tipo, instagram_link, area, descricao, como_participar, contato)
+                VALUES (:nome, :tipo, :instagram_link, :area, :descricao, :como_participar, :contato)
+                ''',
+                [{campo: None for campo in campos_extras} | entidade for entidade in entidades_fixas_iniciais]
+            )
+            return
+
+        for entidade in entidades_fixas_iniciais:
+            for campo in campos_extras:
+                if entidade.get(campo):
+                    conexao.execute(
+                        f"UPDATE entidades_fixas SET {campo} = ? "
+                        f"WHERE nome = ? AND ({campo} IS NULL OR {campo} = '')",
+                        (entidade[campo], entidade['nome'])
+                    )
 
 
 def listar_entidades_fixas(perfil, tipo=None):
@@ -311,12 +373,29 @@ def listar_entidades_fixas(perfil, tipo=None):
 
 # ============================= { FUNÇÕES AUXILIARES } ============================= #
 
+def _sem_acento(texto):
+    texto = unicodedata.normalize('NFD', str(texto))
+    return ''.join(c for c in texto if not unicodedata.combining(c)).casefold()
+
+
+def _limpar_opcional(valor, rotulo, limite):
+    if valor is None or not str(valor).strip():
+        return None
+
+    valor = str(valor).strip()
+
+    if len(valor) > limite:
+        raise ValueError(f'{rotulo} deve ter no máximo {limite} caracteres.')
+
+    return valor
+
+
 def _exigir_tipo(perfil, tipo):
     if perfil is None or perfil.tipo_usuario != tipo:
         raise PermissionError(f'Ação permitida apenas para {tipo}s.')
 
 def _consultar(sql, parametros=()):
-    with closing(conectar()) as conexao:
+    with closing(conectar()) as conexao, conexao:
         return conexao.execute(sql, parametros).fetchall()
 
 def _reconstruir(linha):
@@ -636,3 +715,97 @@ def listar_interessados(usuario, id_oportunidade):
     )
  
     return [dict(linha) for linha in linhas]
+
+def buscar_entidades(texto):
+    # Busca sem acento/maiúsculas no nome, tipo, área e descrição.
+    if not isinstance(texto, str) or not texto.strip():
+        raise ValueError('Digite um termo para buscar.')
+
+    termo = _sem_acento(texto.strip())
+
+    def alvo(entidade):
+        partes = [entidade['nome'], tipos_entidades_fixas.get(entidade['tipo'], ''),
+                    entidade.get('area'), entidade.get('descricao')]
+        return _sem_acento(' '.join(parte for parte in partes if parte))
+
+    return [entidade for entidade in listar_entidades_fixas(None) if termo in alvo(entidade)]
+
+
+# ========== { Apresentação das entidades } ========== #
+
+def _usuario_instagram(link):
+    # https://instagram.com/unbaja/  ->  @unbaja
+    return '@' + link.rstrip('/').rsplit('/', 1)[-1]
+
+
+def formatar_entidade(entidade, incluir_padrao=True):
+    # Card de uma entidade; campos vazios são omitidos (nada de "None" na tela).
+    # incluir_padrao=False: só o que é da entidade (nas listas, o texto do tipo aparece uma vez no grupo).
+    padrao = info_tipos.get(entidade['tipo'], {}) if incluir_padrao else {}
+    tipo = tipos_entidades_fixas.get(entidade['tipo'], entidade['tipo'])
+
+    linhas = [f"  ▸ {entidade['nome']}"]
+
+    if incluir_padrao:
+        linhas.append(tela.campo('Tipo', tipo))
+
+    if entidade.get('area'):
+        linhas.append(tela.campo('Área', entidade['area']))
+
+    sobre = entidade.get('descricao') or padrao.get('sobre')
+    if sobre:
+        linhas.append(tela.campo('Sobre', sobre))
+
+    participar = entidade.get('como_participar') or padrao.get('como_participar')
+    if participar:
+        linhas.append(tela.campo('Como participar', participar))
+
+    linhas.append(tela.campo(
+        'Instagram', f"{_usuario_instagram(entidade['instagram_link'])}  ({entidade['instagram_link']})"
+    ))
+
+    if entidade.get('contato'):
+        linhas.append(tela.campo('Contato', entidade['contato']))
+
+    return '\n'.join(linhas)
+
+
+def formatar_lista_entidades(lista):
+    # Grupos por tipo: título com contagem + texto geral do tipo (uma vez) + cards. Total no fim.
+    if not lista:
+        return 'Nenhuma organização encontrada.'
+
+    blocos = []
+
+    for tipo, rotulo in tipos_entidades_fixas.items():
+        do_tipo = [entidade for entidade in lista if entidade['tipo'] == tipo]
+
+        if not do_tipo:
+            continue
+
+        padrao = info_tipos.get(tipo, {})
+        titulo = f'── {rotulo} ({len(do_tipo)}) '
+        cabecalho = [titulo + '─' * max(tela.largura - len(titulo), 3)]
+
+        if padrao.get('sobre'):
+            cabecalho.append(tela.campo('O que é', padrao['sobre'], recuo=2))
+
+        if padrao.get('como_participar'):
+            cabecalho.append(tela.campo('Como participar', padrao['como_participar'], recuo=2))
+
+        cards = '\n\n'.join(formatar_entidade(entidade, incluir_padrao=False) for entidade in do_tipo)
+        blocos.append('\n'.join(cabecalho) + '\n\n' + cards)
+
+    return '\n\n'.join(blocos) + f'\n\nTotal: {len(lista)} organização(ões).'
+
+
+def resumo_entidades(lista):
+    # Ex.: "13 organizações · Empresa Júnior: 4 · ..." (quebrado na largura da tela)
+    contagens = [
+        f"{rotulo}: {sum(1 for entidade in lista if entidade['tipo'] == tipo)}"
+        for tipo, rotulo in tipos_entidades_fixas.items()
+    ]
+    texto = f'{len(lista)} organizações  ·  ' + '  ·  '.join(contagens)
+
+    return textwrap.fill(texto, width=tela.largura, initial_indent='  ', subsequent_indent='  ')
+
