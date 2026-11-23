@@ -400,32 +400,54 @@ class Biblioteca:
 
     def reservar(self, perfil, id_livro):
         regra = self._regra(perfil)
-        livro = self.obter_livro(id_livro)
-        ativos = self.emprestimos_ativos(perfil)
-
-        if any(e.atrasado for e in ativos):
-            raise ValueError('Você tem livro em atraso. Devolva-o antes de reservar outro.')
-
-        if len(ativos) >= regra['limite']:
-            raise ValueError(f"Limite de {regra['limite']} livros emprestados ao mesmo tempo.")
-
-        if any(e.livro_id == id_livro for e in ativos):
-            raise ValueError('Você já está com um exemplar deste livro.')
-
-        if not livro.disponiveis:
-            raise ValueError('Todos os exemplares deste livro estão emprestados.')
-
         hoje = self.__hoje()
         devolver_ate = hoje + timedelta(days=regra['prazo_dias'])
 
-        with closing(_conectar()) as conexao, conexao:
-            conexao.execute(
-                '''
-                INSERT INTO emprestimos (livro_id, usuario_id, retirado_em, devolver_ate)
-                VALUES (?, ?, ?, ?)
-                ''',
-                (id_livro, perfil.id_user, hoje.isoformat(), devolver_ate.isoformat())
-            )
+        with closing(_conectar()) as conexao:
+            conexao.isolation_level = None
+            conexao.execute('BEGIN IMMEDIATE')
+            try:
+                linha_livro = conexao.execute(
+                    self._consulta_livros + ' WHERE livros.id = ?', (id_livro,)
+                ).fetchone()
+
+                if linha_livro is None:
+                    raise ValueError('Livro não encontrado.')
+
+                livro = self._montar_livro(linha_livro)
+                linhas_ativos = conexao.execute(
+                    '''
+                    SELECT emprestimos.*, livros.titulo
+                    FROM emprestimos JOIN livros ON livros.id = emprestimos.livro_id
+                    WHERE emprestimos.usuario_id = ? AND emprestimos.devolvido_em IS NULL
+                    ''',
+                    (perfil.id_user,)
+                ).fetchall()
+                ativos = [Emprestimo(linha, hoje) for linha in linhas_ativos]
+
+                if any(e.atrasado for e in ativos):
+                    raise ValueError('Você tem livro em atraso. Devolva-o antes de reservar outro.')
+
+                if len(ativos) >= regra['limite']:
+                    raise ValueError(f"Limite de {regra['limite']} livros emprestados ao mesmo tempo.")
+
+                if any(e.livro_id == id_livro for e in ativos):
+                    raise ValueError('Você já está com um exemplar deste livro.')
+
+                if not livro.disponiveis:
+                    raise ValueError('Todos os exemplares deste livro estão emprestados.')
+
+                conexao.execute(
+                    '''
+                    INSERT INTO emprestimos (livro_id, usuario_id, retirado_em, devolver_ate)
+                    VALUES (?, ?, ?, ?)
+                    ''',
+                    (id_livro, perfil.id_user, hoje.isoformat(), devolver_ate.isoformat())
+                )
+                conexao.execute('COMMIT')
+            except Exception:
+                conexao.execute('ROLLBACK')
+                raise
 
         return livro, devolver_ate
 
@@ -553,6 +575,7 @@ class PaginaBiblioteca(PaginaPerfil):
         if self._eh_admin:
             opcoes += [
                 ('Cadastrar livro', self._cadastrar),
+                ('Importar acervo de arquivo CSV', self._importar_csv),
                 ('Recarregar acervo do arquivo JSON', self._recarregar),
             ]
 

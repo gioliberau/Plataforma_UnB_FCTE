@@ -1,3 +1,5 @@
+import os
+
 from app.controllers.application import Application
 from bottle import Bottle, redirect, request, response, run, static_file
 
@@ -24,10 +26,10 @@ def acao_login():
     email = request.forms.getunicode('email') or ''
     senha = request.forms.getunicode('senha') or ''
 
-    session_id = ctl.autenticar_usuario(email, senha)
+    session_id, erro = ctl.autenticar_usuario(email, senha)
 
     if not session_id:
-        return redirect('/login?erro=1')
+        return redirect(f'/login?erro={erro}')
 
     response.set_cookie('session_id', session_id, httponly=True, max_age=3600, path='/')
     return redirect('/menu')
@@ -46,4 +48,4 @@ def logout():
 
 
 if __name__ == '__main__':
-    run(app, host='0.0.0.0', port=8080, debug=True)
+    run(app, host='0.0.0.0', port=8080, debug=os.environ.get('BMVC_DEBUG') == '1')

@@ -201,16 +201,35 @@ def criar_admin_inicial(email, senha):
 
     email = validar_email(email)
     _validar_nova_senha(senha)
+    senha_hash = gerar_hash_senha(senha)
 
     with closing(banco.conectar()) as conexao:
-        existe_admin = conexao.execute("SELECT 1 FROM acessos WHERE tipo_usuario = 'admin'"
-        ).fetchone()
+        conexao.isolation_level = None
+        conexao.execute('BEGIN IMMEDIATE')
+        try:
+            existe_admin = conexao.execute(
+                "SELECT 1 FROM acessos WHERE tipo_usuario = 'admin'"
+            ).fetchone()
 
-    if existe_admin:
-        raise PermissionError('Já existe um admin cadastrado.')
+            if existe_admin:
+                raise PermissionError('Já existe um admin cadastrado.')
 
-    # O próprio admin escolheu a senha, então não precisa trocá-la.
-    _inserir_acesso(email, 'admin', gerar_hash_senha(senha), 0)
+            # O próprio admin escolheu a senha, então não precisa trocá-la.
+            try:
+                conexao.execute(
+                    '''
+                    INSERT INTO acessos (email, tipo_usuario, senha_hash, trocar_senha)
+                    VALUES (?, 'admin', ?, 0)
+                    ''',
+                    (email, senha_hash)
+                )
+            except sqlite3.IntegrityError:
+                raise ValueError('Este e-mail já possui acesso cadastrado.')
+
+            conexao.execute('COMMIT')
+        except Exception:
+            conexao.execute('ROLLBACK')
+            raise
 
     return Conta(email, 'admin', False)
 

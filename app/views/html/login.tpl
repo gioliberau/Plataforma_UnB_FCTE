@@ -12,7 +12,9 @@
         <h1>Plataforma UnB FCTE</h1>
         <p class="sub">Campus Gama — Acesso ao Portal</p>
 
-        % if defined('erro') and erro:
+        % if defined('erro') and erro == 'trocar_senha':
+            <div class="alerta-erro" role="alert">Primeiro acesso: troque sua senha inicial no terminal antes de entrar pela web.</div>
+        % elif defined('erro') and erro:
             <div class="alerta-erro" role="alert">E-mail ou senha incorretos.</div>
         % end
 

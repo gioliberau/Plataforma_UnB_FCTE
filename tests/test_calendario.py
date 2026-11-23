@@ -102,6 +102,14 @@ class TestCalendario(unittest.TestCase):
 
         self.assertEqual(self.json.read_text(encoding='utf-8'), antes)
 
+    def test_atualizar_cria_arquivo_se_ausente(self):
+        self.json.unlink()
+        self.simular_site(TEXTO_2026_2)
+
+        self.assertEqual(calendario.atualizar_calendario(), 6)
+        self.assertTrue(self.json.exists())
+        self.assertEqual(len(cp.eventos_do_periodo('2026.2')), 6)
+
     def test_so_admin_atualiza(self):
         with self.assertRaises(PermissionError):
             cp.atualizar_calendario(None)

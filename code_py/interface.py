@@ -247,10 +247,14 @@ class InterfaceFCTE:
                 ('Oportunidades e organizações', lambda: criar_pagina(self.__sessao).executar()),
                 ('Cardápio do RU', lambda: PaginaCardapio(self.__sessao).executar()),
                 ('Turmas do SIGAA', lambda: PaginaTurmas(self.__sessao).executar()),
+                ('Biblioteca FCTE', lambda: PaginaBiblioteca(self.__sessao).executar()),
             ]
  
             if conta.eh_admin:
-                lista.append(('Gerar acesso para um e-mail', self.__gerar_acesso))
+                lista += [
+                    ('Gerar acesso para um e-mail', self.__gerar_acesso),
+                    ('Atualizar calendário acadêmico (SAA)', self.__atualizar_calendario),
+                ]
  
             return lista
  

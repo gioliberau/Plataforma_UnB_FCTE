@@ -92,6 +92,7 @@ def conectar():
 
     conexao = sqlite3.connect(caminho_banco)
     conexao.row_factory = sqlite3.Row               # Permite acessar os resultados do banco pelo nome das colunas
+    conexao.execute('PRAGMA foreign_keys = ON')
     
     conexao.executescript(esquema)                  # IF NOT EXISTS: só cria o que ainda não existe
     

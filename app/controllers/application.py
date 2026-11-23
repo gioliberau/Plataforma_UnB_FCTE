@@ -39,14 +39,17 @@ class Application:
     def autenticar_usuario(self, email, senha):
         conta = login.autenticar(email, senha)
         if conta is None:
-            return None
+            return None, 'credenciais'
+
+        if conta.precisa_trocar_senha:
+            return None, 'trocar_senha'
 
         perfil = None if conta.eh_admin else banco.buscar_perfil(conta.email)
 
         self.encerrar_sessao()
         session_id = str(uuid.uuid4())
         self.__sessoes[session_id] = self.__montar_dados_usuario(conta, perfil)
-        return session_id
+        return session_id, None
 
     def encerrar_sessao(self):
         session_id = self.get_session_id()
@@ -59,12 +62,16 @@ class Application:
         tipo = perfil.tipo_usuario if perfil else conta.tipo_usuario
 
         dados = {
-            'nome': perfil.nome if perfil else 'Administrador FCTE',
+            'nome': perfil.nome if perfil else ('Administrador FCTE' if conta.eh_admin else conta.email),
             'email': conta.email,
             'tipo_usuario': tipo,
             'matricula': perfil.id_user if perfil else '—',
             'cpf': (perfil.cpf or '—') if perfil else '—',
-            'curso_ou_area': perfil.curso_ou_area if perfil else 'Administração do Sistema',
+            'curso_ou_area': (
+                perfil.curso_ou_area
+                if perfil
+                else ('Administração do Sistema' if conta.eh_admin else 'Perfil não completado')
+            ),
             'ingresso': (
                 f'{perfil.ano_entrada}.{perfil.semestre_entrada}'
                 if perfil and perfil.ano_entrada and perfil.semestre_entrada

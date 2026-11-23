@@ -27,3 +27,14 @@ class TestLogin(TesteComBanco):
     def test_perfil_gravado(self):
         perfil = self.criar_perfil('ana@aluno.unb.br', 'discente', '52998224725')
         self.assertEqual(banco.buscar_perfil('ana@aluno.unb.br').id_user, perfil.id_user)
+
+    def test_chaves_estrangeiras_ativas(self):
+        import sqlite3
+        from contextlib import closing
+
+        with closing(banco.conectar()) as conexao:
+            self.assertEqual(conexao.execute('PRAGMA foreign_keys').fetchone()[0], 1)
+            with self.assertRaises(sqlite3.IntegrityError):
+                conexao.execute(
+                    "INSERT INTO matriculas (discente_id, turma) VALUES ('inexistente', '2026.2|FGA0158|01')"
+                )

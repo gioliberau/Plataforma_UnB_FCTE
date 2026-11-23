@@ -138,8 +138,10 @@ def atualizar_calendario():
     if not pdfs:
         raise RuntimeError("Nenhum PDF encontrado no site.")
 
-    texto_json = arquivo_calendario.read_text(encoding='utf-8')
-    dados = json.loads(texto_json)
+    if arquivo_calendario.exists():
+        dados = json.loads(arquivo_calendario.read_text(encoding='utf-8'))
+    else:
+        dados = {'eventos': []}
     
     total_lidos = 0
     novos_eventos_por_periodo = {}
@@ -176,6 +178,17 @@ def atualizar_calendario():
 
     dados['eventos'] = eventos_finais
     dados['atualizado_em'] = datetime.now().isoformat()
-    
-    arquivo_calendario.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding='utf-8')
+
+    arquivo_calendario.parent.mkdir(parents=True, exist_ok=True)
+    arquivo_temporario = arquivo_calendario.with_suffix('.tmp')
+    try:
+        arquivo_temporario.write_text(
+            json.dumps(dados, ensure_ascii=False, indent=2),
+            encoding='utf-8'
+        )
+        arquivo_temporario.replace(arquivo_calendario)
+    finally:
+        if arquivo_temporario.exists():
+            arquivo_temporario.unlink()
+
     return total_lidos
