@@ -41,6 +41,14 @@ pip install -r requirements.txt
 ```
 
 ### 2. Iniciar o sistema
+
+**Aplicativo Desktop (Tkinter/ttk):**
+```bash
+python3 desktop.py
+```
+> No Linux, caso o `tkinter` não venha instalado por padrão: `sudo apt install python3-tk` (Ubuntu/Debian) ou `sudo dnf install python3-tkinter` (Fedora).
+
+**Interface no terminal:**
 ```bash
 python -m code_py.interface
 ```
