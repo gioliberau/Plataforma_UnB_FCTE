@@ -4,17 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Plataforma UnB FCTE</title>
-    <link rel="stylesheet" type="text/css" href="/static/css/login.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/login.css?v=2">
 </head>
 <body class="pagina-login">
     <main class="cartao">
         <img class="logo-login" src="/static/img/logo_unb.svg" alt="Logo da UnB">
         <h1>Plataforma UnB FCTE</h1>
-        <p class="sub">Campus Gama — Acesso ao Portal</p>
+        <p class="sub">Campus Gama — Acesso ao Portal Web</p>
 
-        % if defined('erro') and erro == 'trocar_senha':
-            <div class="alerta-erro" role="alert">Primeiro acesso: troque sua senha inicial no terminal antes de entrar pela web.</div>
-        % elif defined('erro') and erro:
+        % if defined('erro') and erro:
             <div class="alerta-erro" role="alert">E-mail ou senha incorretos.</div>
         % end
 
@@ -25,7 +23,7 @@
             <label for="senha">Senha</label>
             <input id="senha" name="senha" type="password" placeholder="Mínimo de 8 caracteres" minlength="8" required>
 
-            <button type="submit">Entrar</button>
+            <button type="submit" class="bloco-btn">Entrar</button>
         </form>
     </main>
 </body>

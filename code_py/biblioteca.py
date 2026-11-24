@@ -507,6 +507,55 @@ class Biblioteca:
         except sqlite3.IntegrityError:
             raise ValueError('Este livro já está cadastrado.')
 
+    def editar_livro(self, conta, id_livro, titulo, autores, area, exemplares):
+        exigir_admin(conta)
+
+        livro = self.obter_livro(id_livro)
+        titulo, autores, area = titulo.strip(), autores.strip(), area.strip()
+
+        if not titulo or not autores or not area:
+            raise ValueError('Título, autores e área são obrigatórios.')
+
+        emprestados = livro.exemplares - livro.disponiveis
+        if exemplares < max(1, emprestados):
+            raise ValueError(
+                f'Número de exemplares inválido (mínimo {max(1, emprestados)} devido aos empréstimos ativos).'
+            )
+
+        try:
+            with closing(_conectar()) as conexao, conexao:
+                conexao.execute(
+                    '''
+                    UPDATE livros
+                    SET titulo = ?, autores = ?, area = ?, exemplares = ?
+                    WHERE id = ?
+                    ''',
+                    (titulo, autores, area, exemplares, id_livro)
+                )
+        except sqlite3.IntegrityError:
+            raise ValueError('Já existe outro livro com este título e autores.')
+
+        return self.obter_livro(id_livro)
+
+    def remover_livro(self, conta, id_livro):
+        exigir_admin(conta)
+
+        livro = self.obter_livro(id_livro)
+
+        with closing(_conectar()) as conexao, conexao:
+            ativos = conexao.execute(
+                'SELECT COUNT(*) FROM emprestimos WHERE livro_id = ? AND devolvido_em IS NULL',
+                (id_livro,)
+            ).fetchone()[0]
+
+            if ativos > 0:
+                raise ValueError('Não é possível remover um livro com empréstimo em andamento.')
+
+            conexao.execute('DELETE FROM emprestimos WHERE livro_id = ?', (id_livro,))
+            conexao.execute('DELETE FROM livros WHERE id = ?', (id_livro,))
+
+        return livro
+
     def importar_csv(self, conta, caminho):
         # Importa livros de um CSV: tudo ou nada. Devolve (livros novos, livros atualizados).
         exigir_admin(conta)

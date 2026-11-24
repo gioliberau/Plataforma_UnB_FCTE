@@ -174,6 +174,95 @@ def atribuir_docente(admin, id_docente, chave):
         )
 
 
+def desmatricular(admin, matricula_aluno, chave):
+    exigir_admin(admin)
+
+    with closing(conectar()) as conexao, conexao:
+        cursor = conexao.execute(
+            'DELETE FROM matriculas WHERE discente_id = ? AND turma = ?',
+            (matricula_aluno, chave)
+        )
+
+    if cursor.rowcount == 0:
+        raise ValueError('Matrícula não encontrada.')
+
+
+def remover_oferta(admin, chave):
+    exigir_admin(admin)
+
+    with closing(conectar()) as conexao, conexao:
+        cursor = conexao.execute(
+            'DELETE FROM ofertas WHERE turma = ?',
+            (chave,)
+        )
+
+    if cursor.rowcount == 0:
+        raise ValueError('Vínculo de oferta não encontrado.')
+
+
+def listar_matriculas_admin(admin):
+    # Lista todas as matrículas com dados do discente e da turma (uso administrativo).
+    exigir_admin(admin)
+
+    with closing(conectar()) as conexao:
+        linhas = conexao.execute(
+            '''
+            SELECT matriculas.discente_id AS matricula,
+                   usuarios.nome AS discente_nome,
+                   matriculas.turma AS chave,
+                   matriculas.nota
+            FROM matriculas
+            JOIN usuarios ON usuarios.id_user = matriculas.discente_id
+            ORDER BY matriculas.turma DESC, usuarios.nome
+            '''
+        ).fetchall()
+
+    resultado = []
+    for linha in linhas:
+        turma = buscar_turma(linha['chave'])
+        if turma is None:
+            continue
+        resultado.append({
+            'matricula': linha['matricula'],
+            'discente_nome': linha['discente_nome'],
+            'chave': linha['chave'],
+            'turma': turma,
+            'nota': linha['nota'],
+            'mencao': None if linha['nota'] is None else mencao(linha['nota']),
+        })
+    return resultado
+
+
+def listar_ofertas_admin(admin):
+    # Lista todas as ofertas (docente <-> turma) para gestão administrativa.
+    exigir_admin(admin)
+
+    with closing(conectar()) as conexao:
+        linhas = conexao.execute(
+            '''
+            SELECT ofertas.turma AS chave,
+                   ofertas.docente_id AS id_docente,
+                   usuarios.nome AS docente_nome
+            FROM ofertas
+            JOIN usuarios ON usuarios.id_user = ofertas.docente_id
+            ORDER BY ofertas.turma DESC, usuarios.nome
+            '''
+        ).fetchall()
+
+    resultado = []
+    for linha in linhas:
+        turma = buscar_turma(linha['chave'])
+        if turma is None:
+            continue
+        resultado.append({
+            'chave': linha['chave'],
+            'id_docente': linha['id_docente'],
+            'docente_nome': linha['docente_nome'],
+            'turma': turma,
+        })
+    return resultado
+
+
 # ============================= { CONSULTAS } ============================= #
 
 def turmas_do_discente(perfil):

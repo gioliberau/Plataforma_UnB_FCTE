@@ -9,6 +9,10 @@ body {
     color: #1f2933;
 }
 
+a {
+    color: #003366;
+}
+
 /* ============================= { TELA DE LOGIN } ============================= */
 
 body.pagina-login {
@@ -21,7 +25,7 @@ body.pagina-login {
 
 .cartao {
     width: 100%;
-    max-width: 400px;
+    max-width: 440px;
     background: #fff;
     border-radius: 10px;
     border-top: 5px solid #003366;
@@ -50,75 +54,146 @@ p.sub {
     text-align: center;
 }
 
-.alerta-erro {
+.alerta-erro,
+.alerta-sucesso,
+.alerta-aviso {
     margin-bottom: 16px;
-    padding: 10px 12px;
+    padding: 11px 14px;
     border-radius: 6px;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.alerta-erro {
     background: #fde8e8;
     color: #9b1c1c;
-    font-size: 0.9rem;
-    font-weight: 600;
+    border-left: 4px solid #b91c1c;
+}
+
+.alerta-sucesso {
+    background: #def7ec;
+    color: #03543f;
+    border-left: 4px solid #006633;
+}
+
+.alerta-aviso {
+    background: #fef3c7;
+    color: #92400e;
+    border-left: 4px solid #d97706;
 }
 
 label {
     display: block;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     font-weight: 600;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
+    color: #334e68;
 }
 
-input {
+input,
+select,
+textarea {
     width: 100%;
-    padding: 10px 12px;
-    margin-bottom: 16px;
+    padding: 9px 11px;
+    margin-bottom: 14px;
     border: 1px solid #cbd2d9;
     border-radius: 6px;
-    font-size: 1rem;
+    font-size: 0.95rem;
+    background: #fff;
+    color: #1f2933;
 }
 
-input:focus {
+textarea {
+    resize: vertical;
+    min-height: 82px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
     outline: 2px solid #003366;
     border-color: #003366;
 }
 
-button {
-    width: 100%;
-    padding: 11px;
+button,
+.btn {
+    display: inline-block;
+    padding: 10px 14px;
     border: 0;
     border-radius: 6px;
     background: #003366;
     color: #fff;
-    font-size: 1rem;
+    font-size: 0.94rem;
     font-weight: 600;
     cursor: pointer;
+    text-decoration: none;
+    text-align: center;
 }
 
-button:hover {
+button.bloco-btn {
+    width: 100%;
+}
+
+button:hover,
+.btn:hover {
     background: #00509e;
 }
 
-/* ============================= { MENU PRINCIPAL } ============================= */
+.btn-destaque {
+    background: #006633;
+}
+
+.btn-destaque:hover {
+    background: #008040;
+}
+
+.btn-perigo {
+    background: #b91c1c;
+}
+
+.btn-perigo:hover {
+    background: #991b1b;
+}
+
+.btn-secundario {
+    background: #e4ecf4;
+    color: #003366;
+}
+
+.btn-secundario:hover {
+    background: #d0deec;
+}
+
+.btn-pequeno {
+    padding: 5px 10px;
+    font-size: 0.82rem;
+}
+
+/* ============================= { TOPO E NAVEGAÇÃO } ============================= */
 
 .topo {
     background: #003366;
     color: #fff;
     padding: 14px 24px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .topo-conteudo {
-    max-width: 1040px;
+    max-width: 1120px;
     margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
+    flex-wrap: wrap;
 }
 
-.topo-marca {
+.topo-marca,
+.topo-marca:visited {
     display: flex;
     align-items: center;
     gap: 14px;
+    text-decoration: none;
+    color: #fff;
 }
 
 .logo-topo {
@@ -135,7 +210,7 @@ button:hover {
 }
 
 .sub-topo {
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     color: #cbd5e1;
 }
 
@@ -148,7 +223,7 @@ button:hover {
 .badge-tipo {
     background: #006633;
     color: #fff;
-    font-size: 0.75rem;
+    font-size: 0.74rem;
     font-weight: 700;
     padding: 5px 10px;
     border-radius: 999px;
@@ -156,9 +231,8 @@ button:hover {
 }
 
 .btn-sair {
-    width: auto;
     padding: 7px 14px;
-    font-size: 0.88rem;
+    font-size: 0.86rem;
     background: rgba(255, 255, 255, 0.16);
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
@@ -167,10 +241,49 @@ button:hover {
     background: rgba(255, 255, 255, 0.28);
 }
 
+.barra-nav-wrap {
+    background: #ffffff;
+    border-bottom: 1px solid #d9e2ec;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    padding: 8px 24px;
+}
+
+.barra-nav {
+    max-width: 1120px;
+    margin: 0 auto;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.barra-nav a,
+.barra-nav a:visited {
+    color: #003366;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 7px 13px;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.barra-nav a:hover {
+    background: #e6eff8;
+    color: #002244;
+}
+
+.barra-nav a.ativo,
+.barra-nav a.ativo:visited {
+    background: #003366;
+    color: #ffffff;
+}
+
+/* ============================= { PAINEL E BLOCOS } ============================= */
+
 .painel {
-    max-width: 1040px;
+    max-width: 1120px;
     margin: 24px auto;
-    padding: 0 20px 36px;
+    padding: 0 20px 42px;
 }
 
 .secao-boas-vindas h2 {
@@ -205,7 +318,7 @@ button:hover {
 
 .rotulo-ind {
     display: block;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: #52606d;
     font-weight: 600;
     text-transform: uppercase;
@@ -213,7 +326,7 @@ button:hover {
 
 .valor-ind {
     display: block;
-    font-size: 1.7rem;
+    font-size: 1.65rem;
     color: #003366;
     margin: 6px 0 4px;
 }
@@ -230,19 +343,30 @@ button:hover {
     margin-bottom: 20px;
 }
 
+.grade-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0 16px;
+}
+
+.grade-form .largura-total {
+    grid-column: 1 / -1;
+}
+
 .bloco {
     background: #fff;
     border-radius: 10px;
-    padding: 22px 24px;
+    padding: 20px 24px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
 }
 
 .bloco h3 {
-    margin: 0 0 16px;
-    font-size: 1.1rem;
+    margin: 0 0 14px;
+    font-size: 1.08rem;
     color: #003366;
     border-bottom: 1px solid #e4e7eb;
-    padding-bottom: 10px;
+    padding-bottom: 9px;
 }
 
 .lista-dados {
@@ -255,6 +379,7 @@ button:hover {
     padding: 8px 0;
     border-bottom: 1px solid #f1f5f9;
     font-size: 0.92rem;
+    gap: 12px;
 }
 
 .lista-dados div:last-child {
@@ -270,19 +395,28 @@ button:hover {
     margin: 0;
     color: #1f2933;
     font-weight: 500;
+    text-align: right;
 }
 
 .atalhos-menu {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 12px;
 }
 
 .item-atalho {
+    display: block;
     padding: 14px;
     border: 1px solid #e4e7eb;
     border-radius: 8px;
     background: #f8fafc;
+    text-decoration: none;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.item-atalho:hover {
+    border-color: #003366;
+    background: #eef5fc;
 }
 
 .item-atalho strong {
@@ -299,21 +433,114 @@ button:hover {
     line-height: 1.35;
 }
 
+.barra-filtro {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+    margin-bottom: 14px;
+}
+
+.barra-filtro .campo-filtro {
+    flex: 1 1 180px;
+}
+
+.barra-filtro input,
+.barra-filtro select {
+    margin-bottom: 0;
+}
+
+.barra-filtro .check-inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 8px;
+}
+
+.barra-filtro .check-inline input {
+    width: auto;
+    margin: 0;
+}
+
+.acoes-linha {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.acoes-linha form {
+    display: inline;
+    margin: 0;
+}
+
+.form-inline-nota {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.form-inline-nota input {
+    width: 78px;
+    margin: 0;
+    padding: 5px 7px;
+}
+
+.badge-status {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.badge-aberta {
+    background: #def7ec;
+    color: #03543f;
+}
+
+.badge-encerrada {
+    background: #e4e7eb;
+    color: #52606d;
+}
+
+.badge-alerta {
+    background: #fde8e8;
+    color: #9b1c1c;
+}
+
+.tabela-wrapper {
+    overflow-x: auto;
+}
+
 .tabela {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.92rem;
+    font-size: 0.9rem;
 }
 
 .tabela th,
 .tabela td {
     text-align: left;
-    padding: 10px 12px;
+    padding: 10px 11px;
     border-bottom: 1px solid #e4e7eb;
+    vertical-align: top;
 }
 
 .tabela th {
     background: #f8fafc;
     color: #52606d;
     font-weight: 600;
+    white-space: nowrap;
+}
+
+.texto-suave {
+    color: #52606d;
+    font-size: 0.88rem;
+}
+
+.grade-cardapio {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    gap: 16px;
 }

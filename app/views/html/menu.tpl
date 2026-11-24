@@ -4,31 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Menu Principal - Plataforma UnB FCTE</title>
-    <link rel="stylesheet" type="text/css" href="/static/css/login.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/login.css?v=2">
 </head>
 <body class="pagina-menu">
-    <header class="topo">
-        <div class="topo-conteudo">
-            <div class="topo-marca">
-                <img class="logo-topo" src="/static/img/logo_unb.svg" alt="Logo da UnB">
-                <div>
-                    <h1>Plataforma UnB FCTE</h1>
-                    <span class="sub-topo">Portal Acadêmico — Campus Gama | Semestre {{usuario['semestre_atual']}}</span>
-                </div>
-            </div>
-            <div class="topo-acoes">
-                <span class="badge-tipo">{{usuario['tipo_usuario'].upper()}}</span>
-                <form action="/logout" method="post">
-                    <button type="submit" class="btn-sair">Sair</button>
-                </form>
-            </div>
-        </div>
-    </header>
+% include('app/views/html/_topo.tpl', usuario=usuario, pagina_ativa=pagina_ativa, flash=flash)
 
-    <main class="painel">
         <section class="secao-boas-vindas">
             <h2>Olá, {{usuario['nome']}}!</h2>
-            <p>Confira abaixo seus dados acadêmicos e os serviços do campus FCTE.</p>
+            <p>Confira abaixo seus indicadores acadêmicos e acesse todos os módulos do campus FCTE.</p>
         </section>
 
         % if usuario['tipo_usuario'] == 'discente':
@@ -72,6 +55,29 @@
                 <small>{{usuario['curso_ou_area']}}</small>
             </div>
         </section>
+        % elif defined('resumo_admin'):
+        <section class="grade-indicadores" aria-label="Resumo administrativo">
+            <div class="card-indicador destaque">
+                <span class="rotulo-ind">Discentes</span>
+                <strong class="valor-ind">{{resumo_admin['discentes']}}</strong>
+                <small>Perfis cadastrados</small>
+            </div>
+            <div class="card-indicador">
+                <span class="rotulo-ind">Docentes</span>
+                <strong class="valor-ind">{{resumo_admin['docentes']}}</strong>
+                <small>Perfis cadastrados</small>
+            </div>
+            <div class="card-indicador">
+                <span class="rotulo-ind">Oportunidades</span>
+                <strong class="valor-ind">{{resumo_admin['oportunidades']}}</strong>
+                <small>No mural da FCTE</small>
+            </div>
+            <div class="card-indicador">
+                <span class="rotulo-ind">Livros no Acervo</span>
+                <strong class="valor-ind">{{resumo_admin['livros']}}</strong>
+                <small>Biblioteca FCTE</small>
+            </div>
+        </section>
         % end
 
         <div class="grade-principal">
@@ -107,27 +113,40 @@
                         <dd>{{usuario['email']}}</dd>
                     </div>
                 </dl>
+                <div style="margin-top: 14px;">
+                    <a href="/perfil" class="btn btn-secundario btn-pequeno">Editar perfil / trocar senha</a>
+                </div>
             </section>
 
             <section class="bloco">
                 <h3>Menu Rápido — Campus FCTE</h3>
                 <div class="atalhos-menu">
-                    <div class="item-atalho">
+                    <a class="item-atalho" href="/turmas">
                         <strong>Turmas do SIGAA</strong>
-                        <p>Consulta de disciplinas, horários e ocupação de vagas da FGA/FCTE.</p>
-                    </div>
-                    <div class="item-atalho">
+                        <p>Disciplinas, horários traduzidos, matrículas e lançamento de notas.</p>
+                    </a>
+                    <a class="item-atalho" href="/cardapio">
                         <strong>Cardápio do RU — Gama</strong>
-                        <p>Refeições da semana por dieta (padrão, ovolactovegetariana e estrita).</p>
-                    </div>
-                    <div class="item-atalho">
+                        <p>Refeições da semana por dieta (padrão, ovolacto e estrita).</p>
+                    </a>
+                    <a class="item-atalho" href="/oportunidades">
                         <strong>Mural de Oportunidades</strong>
                         <p>Monitorias, projetos de extensão, iniciação científica e estágios.</p>
-                    </div>
-                    <div class="item-atalho">
+                    </a>
+                    <a class="item-atalho" href="/organizacoes">
                         <strong>Organizações Estudantis</strong>
                         <p>Empresas juniores, equipes de competição e atlética do campus.</p>
-                    </div>
+                    </a>
+                    <a class="item-atalho" href="/biblioteca">
+                        <strong>Biblioteca FCTE</strong>
+                        <p>Consulta ao acervo, reservas, renovações, devoluções e gestão de livros.</p>
+                    </a>
+                    % if usuario['eh_admin']:
+                    <a class="item-atalho" href="/usuarios">
+                        <strong>Usuários e Acessos</strong>
+                        <p>Criar acessos, editar perfis cadastrados e remover contas.</p>
+                    </a>
+                    % end
                 </div>
             </section>
         </div>
@@ -136,52 +155,58 @@
         <section class="bloco">
             % if usuario['tipo_usuario'] == 'discente':
                 <h3>Minhas Turmas e Menções</h3>
-                <table class="tabela">
-                    <thead>
-                        <tr>
-                            <th>Código</th>
-                            <th>Disciplina</th>
-                            <th>Período</th>
-                            <th>Créditos</th>
-                            <th>Nota / Menção</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        % for t in usuario['turmas']:
-                        <tr>
-                            <td><code>{{t['codigo']}}</code></td>
-                            <td>{{t['disciplina']}}</td>
-                            <td>{{t['periodo']}}</td>
-                            <td>{{t['creditos']}}</td>
-                            <td><strong>{{t['resultado']}}</strong></td>
-                        </tr>
-                        % end
-                    </tbody>
-                </table>
+                <div class="tabela-wrapper">
+                    <table class="tabela">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Disciplina</th>
+                                <th>Período</th>
+                                <th>Créditos</th>
+                                <th>Horário</th>
+                                <th>Nota / Menção</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            % for t in usuario['turmas']:
+                            <tr>
+                                <td><code>{{t['codigo']}}</code></td>
+                                <td>{{t['disciplina']}}</td>
+                                <td>{{t['periodo']}}</td>
+                                <td>{{t['creditos']}}</td>
+                                <td>{{t['horario']}}</td>
+                                <td><strong>{{t['resultado']}}</strong></td>
+                            </tr>
+                            % end
+                        </tbody>
+                    </table>
+                </div>
             % elif usuario['tipo_usuario'] == 'docente':
-                <h3>Turmas Ofertadas em {{usuario['semestre_atual']}}</h3>
-                <table class="tabela">
-                    <thead>
-                        <tr>
-                            <th>Código</th>
-                            <th>Disciplina</th>
-                            <th>Turma</th>
-                            <th>Créditos</th>
-                            <th>Horário SIGAA</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        % for t in usuario['turmas']:
-                        <tr>
-                            <td><code>{{t['codigo']}}</code></td>
-                            <td>{{t['disciplina']}}</td>
-                            <td>{{t['turma']}}</td>
-                            <td>{{t['creditos']}}</td>
-                            <td><code>{{t['horario']}}</code></td>
-                        </tr>
-                        % end
-                    </tbody>
-                </table>
+                <h3>Turmas Ofertadas</h3>
+                <div class="tabela-wrapper">
+                    <table class="tabela">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Disciplina</th>
+                                <th>Turma</th>
+                                <th>Créditos</th>
+                                <th>Horário</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            % for t in usuario['turmas']:
+                            <tr>
+                                <td><code>{{t['codigo']}}</code></td>
+                                <td>{{t['disciplina']}}</td>
+                                <td>{{t['turma']}}</td>
+                                <td>{{t['creditos']}}</td>
+                                <td>{{t['horario']}}</td>
+                            </tr>
+                            % end
+                        </tbody>
+                    </table>
+                </div>
             % end
         </section>
         % end

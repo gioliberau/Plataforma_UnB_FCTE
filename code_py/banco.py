@@ -182,6 +182,91 @@ def cadastrar_perfil(conta, nome, cpf, ano_entrada, semestre_entrada, curso_ou_a
             raise ValueError('Este e-mail ou CPF já possui perfil cadastrado.')
 
 
+def atualizar_perfil(ator, email, nome=None, curso_ou_area=None):
+    # Permite que o próprio usuário ou um admin edite nome e curso/área de um perfil.
+    if ator is None:
+        raise PermissionError('Ação requer autenticação.')
+
+    email = (email or '').strip()
+    eh_admin = getattr(ator, 'eh_admin', False)
+    mesmo_usuario = getattr(ator, 'email', '').casefold() == email.casefold()
+
+    if not eh_admin and not mesmo_usuario:
+        raise PermissionError('Você não tem permissão para editar este perfil.')
+
+    perfil = buscar_perfil(email)
+    if perfil is None:
+        raise ValueError('Perfil não encontrado.')
+
+    novo_nome = perfil.nome if nome is None else nome.strip()
+    if not novo_nome:
+        raise ValueError('O nome não pode estar vazio.')
+
+    novo_valor = perfil.curso_ou_area if curso_ou_area is None else curso_ou_area.strip()
+    if perfil.tipo_usuario == 'discente':
+        perfil.curso = novo_valor
+        coluna = 'curso'
+    else:
+        perfil.area = novo_valor
+        coluna = 'area'
+
+    with closing(conectar()) as conexao, conexao:
+        conexao.execute(
+            f'UPDATE usuarios SET nome = ?, {coluna} = ? WHERE email = ?',
+            (novo_nome, novo_valor, perfil.email)
+        )
+
+    return buscar_perfil(perfil.email)
+
+
+def remover_usuario(admin, email):
+    # Remove o acesso e o perfil (e vínculos) de um usuário. Só admin; não remove a si mesmo.
+    if admin is None or not getattr(admin, 'eh_admin', False):
+        raise PermissionError('Ação permitida apenas para ADMs.')
+
+    email = (email or '').strip()
+    if not email:
+        raise ValueError('Informe o e-mail do usuário.')
+
+    if getattr(admin, 'email', '').casefold() == email.casefold():
+        raise ValueError('Você não pode remover a sua própria conta de administrador.')
+
+    with closing(conectar()) as conexao, conexao:
+        acesso = conexao.execute(
+            'SELECT email FROM acessos WHERE email = ?',
+            (email,)
+        ).fetchone()
+        if acesso is None:
+            raise ValueError('Usuário não encontrado.')
+
+        usuario = conexao.execute(
+            'SELECT id_user FROM usuarios WHERE email = ?',
+            (email,)
+        ).fetchone()
+
+        if usuario is not None:
+            id_user = usuario['id_user']
+            tem_emprestimos = conexao.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'emprestimos'"
+            ).fetchone()
+
+            if tem_emprestimos:
+                ativos = conexao.execute(
+                    'SELECT COUNT(*) FROM emprestimos WHERE usuario_id = ? AND devolvido_em IS NULL',
+                    (id_user,)
+                ).fetchone()[0]
+                if ativos > 0:
+                    raise ValueError('Não é possível remover usuário com livro emprestado em andamento.')
+                conexao.execute('DELETE FROM emprestimos WHERE usuario_id = ?', (id_user,))
+
+            conexao.execute('DELETE FROM interesses WHERE discente_id = ?', (id_user,))
+            conexao.execute('DELETE FROM matriculas WHERE discente_id = ?', (id_user,))
+            conexao.execute('DELETE FROM ofertas WHERE docente_id = ?', (id_user,))
+            conexao.execute('DELETE FROM usuarios WHERE id_user = ?', (id_user,))
+
+        conexao.execute('DELETE FROM acessos WHERE email = ?', (email,))
+
+
 # ============================= { RECONSTRUÇÃO DE OBJETOS } ============================= #
 
 def __reconstruir(dados):

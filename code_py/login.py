@@ -306,6 +306,25 @@ def trocar_senha(email, senha_atual, nova_senha):
     return autenticar(email, nova_senha)
 
 
+def listar_acessos(admin):
+    # Retorna todos os acessos cadastrados (uso administrativo).
+    exigir_admin(admin)
+
+    with closing(banco.conectar()) as conexao:
+        linhas = conexao.execute(
+            '''
+            SELECT email, tipo_usuario, trocar_senha
+            FROM acessos
+            ORDER BY tipo_usuario, email
+            '''
+        ).fetchall()
+
+    return [
+        Conta(linha['email'], linha['tipo_usuario'], linha['trocar_senha'])
+        for linha in linhas
+    ]
+
+
 # ============================= { EXECUÇÃO } ============================= #
 
 def main():

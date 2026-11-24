@@ -318,6 +318,65 @@ def cadastrar_entidade_fixa(conta, nome, tipo, instagram_link, area=None, descri
         return cursor.lastrowid
 
 
+def buscar_entidade_fixa(id_entidade):
+    _popular_entidades_fixas()
+    linhas = _consultar('SELECT * FROM entidades_fixas WHERE id = ?', (id_entidade,))
+    return dict(linhas[0]) if linhas else None
+
+
+def editar_entidade_fixa(conta, id_entidade, nome, tipo, instagram_link,
+                         area=None, descricao=None, como_participar=None, contato=None):
+    exigir_admin(conta)
+    _popular_entidades_fixas()
+
+    if buscar_entidade_fixa(id_entidade) is None:
+        raise ValueError('Entidade não encontrada.')
+
+    if tipo not in tipos_entidades_fixas:
+        raise ValueError('Tipo de entidade fixa inválido.')
+
+    if not isinstance(nome, str) or not nome.strip():
+        raise ValueError('O nome não pode estar vazio.')
+
+    if not isinstance(instagram_link, str) or not instagram_link.strip().startswith(
+        ('https://instagram.com/', 'https://www.instagram.com/')
+    ):
+        raise ValueError('Informe um link do Instagram (https://instagram.com/...).')
+
+    nome = nome.strip()
+    area = _limpar_opcional(area, 'A área', 80)
+    descricao = _limpar_opcional(descricao, 'A descrição', 300)
+    como_participar = _limpar_opcional(como_participar, 'O campo "como participar"', 300)
+    contato = _limpar_opcional(contato, 'O contato', 120)
+
+    with closing(conectar()) as conexao, conexao:
+        conexao.execute(
+            '''
+            UPDATE entidades_fixas
+            SET nome = ?, tipo = ?, instagram_link = ?, area = ?,
+                descricao = ?, como_participar = ?, contato = ?
+            WHERE id = ?
+            ''',
+            (nome, tipo, instagram_link.strip(), area, descricao, como_participar, contato, id_entidade)
+        )
+
+    return buscar_entidade_fixa(id_entidade)
+
+
+def remover_entidade_fixa(conta, id_entidade):
+    exigir_admin(conta)
+    _popular_entidades_fixas()
+
+    entidade = buscar_entidade_fixa(id_entidade)
+    if entidade is None:
+        raise ValueError('Entidade não encontrada.')
+
+    with closing(conectar()) as conexao, conexao:
+        conexao.execute('DELETE FROM entidades_fixas WHERE id = ?', (id_entidade,))
+
+    return entidade
+
+
 def _popular_entidades_fixas():
     # 1) Cria as colunas extras em bancos antigos; 
     # 2) insere o catálogo se a tabela estiver vazia;
@@ -547,14 +606,13 @@ def publicar(autor, titulo, categoria, descricao, contato, prazo=None):
     ))
 
 
-def editar(perfil, id_oportunidade, **campos):
+def editar(usuario, id_oportunidade, **campos):
     # Campos aceitos: titulo, descricao, contato, prazo (date ou None).
-    _exigir_tipo(perfil, 'docente')
+    # Docente edita as próprias publicações; admin pode editar qualquer uma.
+    oportunidade = _buscar_gerenciavel(usuario, id_oportunidade)
 
     if not campos or any(nome not in campos_editaveis for nome in campos):
         raise ValueError('Informe apenas campos editáveis: ' + ', '.join(campos_editaveis))
-
-    oportunidade = _buscar_gerenciavel(perfil, id_oportunidade)
 
     if oportunidade.encerrada:
         raise ValueError('Publicações encerradas não podem ser editadas.')
@@ -570,15 +628,14 @@ def editar(perfil, id_oportunidade, **campos):
             '''
             UPDATE oportunidades
             SET titulo = ?, descricao = ?, contato = ?, prazo = ?
-            WHERE id = ? AND autor_id = ?
+            WHERE id = ?
             ''',
             (
                 oportunidade.titulo,
                 oportunidade.descricao,
                 oportunidade.contato,
                 oportunidade.prazo.isoformat() if oportunidade.prazo else None,
-                oportunidade.id,
-                perfil.id_user
+                oportunidade.id
             )
         )
 
@@ -602,15 +659,10 @@ def encerrar(perfil, id_oportunidade):
     return oportunidade
 
 
-def remover(conta, id_oportunidade):
-    # Remove a publicação e os interesses ligados a ela. Só admin.
-    exigir_admin(conta)
- 
-    oportunidade = buscar(id_oportunidade)
- 
-    if oportunidade is None:
-        raise ValueError('Publicação não encontrada.')
- 
+def remover(usuario, id_oportunidade):
+    # Remove a publicação e os interesses ligados a ela (admin: qualquer uma; docente: próprias).
+    oportunidade = _buscar_gerenciavel(usuario, id_oportunidade)
+
     with closing(conectar()) as conexao, conexao:
         conexao.execute(
             'DELETE FROM interesses WHERE oportunidade_id = ?',
@@ -620,7 +672,7 @@ def remover(conta, id_oportunidade):
             'DELETE FROM oportunidades WHERE id = ?',
             (oportunidade.id,)
         )
- 
+
     return oportunidade
 
 # ============================= { INTERESSES } ============================= #
