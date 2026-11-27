@@ -17,7 +17,7 @@
         % if usuario['eh_admin']:
         <section class="bloco">
             <h3>Cadastrar Novo Livro no Acervo</h3>
-            <form action="/biblioteca/novo" method="post" class="grade-form">
+            <form action="/biblioteca/novo" method="post" class="grade-form" data-async-form="criar">
                 <div>
                     <label for="titulo">Título</label>
                     <input id="titulo" name="titulo" type="text" required>
@@ -41,6 +41,7 @@
         </section>
         % end
 
+        <div id="conteudo-tempo-real" data-canal="biblioteca">
         % if tem_perfil:
         <section class="bloco">
             <h3>Meus Empréstimos Ativos ({{len(emprestimos)}})</h3>
@@ -199,6 +200,7 @@
             </div>
         </section>
         % end
+        </div>
     </main>
 </body>
 </html>

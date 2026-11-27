@@ -1,5 +1,7 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+import json
 import re
+from urllib.parse import quote
 import uuid
 
 from bottle import redirect, request, template
@@ -69,21 +71,67 @@ class Application:
 
     def __init__(self, garantir_exemplos=True):
         self.__sessoes = {}
+        self.__clientes_ws = set()
         self.__sistema = SistemaFCTE()
         self.__biblioteca = bib.Biblioteca()
         if garantir_exemplos:
             _garantir_usuarios_exemplo()
 
+    # ========== { WEBSOCKET TEMPO REAL } ========== #
+
+    def sessao_valida_ws(self):
+        return self.usuario_atual() is not None
+
+    def registrar_ws(self, ws):
+        self.__clientes_ws.add(ws)
+
+    def remover_ws(self, ws):
+        self.__clientes_ws.discard(ws)
+
+    def notificar_ws(self, canal, mensagem):
+        carga = json.dumps({'canal': canal, 'mensagem': mensagem}, ensure_ascii=False)
+        desconectados = []
+        for ws in list(self.__clientes_ws):
+            try:
+                ws.send(carga)
+            except Exception:
+                desconectados.append(ws)
+        for ws in desconectados:
+            self.__clientes_ws.discard(ws)
+
     # ========== { SESSÃO E FLASH } ========== #
+
+    duracao_sessao = timedelta(hours=1)
 
     def get_session_id(self):
         return request.get_cookie('session_id')
+
+    def _limpar_sessoes_vencidas(self):
+        agora = datetime.now()
+        vencidas = [sid for sid, item in self.__sessoes.items() if item['expira_em'] <= agora]
+        for sid in vencidas:
+            del self.__sessoes[sid]
 
     def _sessao_bruta(self):
         session_id = self.get_session_id()
         if not session_id:
             return None
-        return self.__sessoes.get(session_id)
+        sessao = self.__sessoes.get(session_id)
+        if not sessao:
+            return None
+        if sessao['expira_em'] <= datetime.now():
+            del self.__sessoes[session_id]
+            return None
+        return sessao
+
+    def revogar_sessoes_email(self, email):
+        alvo = (email or '').strip().casefold()
+        remover = [
+            sid for sid, item in self.__sessoes.items()
+            if item['conta'].email.casefold() == alvo
+        ]
+        for sid in remover:
+            del self.__sessoes[sid]
 
     def definir_flash(self, tipo, texto):
         sessao = self._sessao_bruta()
@@ -138,6 +186,7 @@ class Application:
             'pagina_ativa': pagina_ativa,
             'flash': self.consumir_flash(),
             'data_br': _data_br,
+            'quote_url': lambda valor: quote(str(valor), safe=''),
         }
 
     # ========== { AUTENTICAÇÃO } ========== #
@@ -148,10 +197,11 @@ class Application:
             return None, 'credenciais', None
 
         self.encerrar_sessao()
+        self._limpar_sessoes_vencidas()
         session_id = str(uuid.uuid4())
         self.__sessoes[session_id] = {
             'conta': conta,
-            'senha_temporaria': senha if conta.precisa_trocar_senha else None,
+            'expira_em': datetime.now() + self.duracao_sessao,
             'flash': None,
         }
 
@@ -266,7 +316,6 @@ class Application:
         if not sessao:
             return redirect('/login')
         conta = sessao['conta']
-        senha_atual = sessao.get('senha_temporaria') or ''
         nova = request.forms.getunicode('nova_senha') or ''
         conf = request.forms.getunicode('confirmacao') or ''
 
@@ -275,13 +324,12 @@ class Application:
             return redirect('/primeiro-acesso')
 
         try:
-            nova_conta = login.trocar_senha(conta.email, senha_atual, nova)
-        except ValueError as erro:
+            nova_conta = login.definir_nova_senha_primeiro_acesso(conta, nova)
+        except (ValueError, PermissionError) as erro:
             self.definir_flash('erro', str(erro))
             return redirect('/primeiro-acesso')
 
         sessao['conta'] = nova_conta
-        sessao['senha_temporaria'] = None
 
         if not nova_conta.eh_admin and banco.buscar_perfil(nova_conta.email) is None:
             self.definir_flash('sucesso', 'Senha atualizada! Complete seu cadastro para continuar.')
@@ -458,6 +506,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/oportunidades')
 
+        self.notificar_ws('oportunidades', f'Nova oportunidade publicada: {nova.titulo}')
         self.definir_flash('sucesso', f'Oportunidade #{nova.id} publicada com sucesso!')
         return redirect('/oportunidades')
 
@@ -493,6 +542,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect(f'/oportunidades/{id_oportunidade}/editar')
 
+        self.notificar_ws('oportunidades', f'Oportunidade #{id_oportunidade} atualizada.')
         self.definir_flash('sucesso', f'Oportunidade #{id_oportunidade} atualizada com sucesso!')
         return redirect('/oportunidades')
 
@@ -506,6 +556,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/oportunidades')
 
+        self.notificar_ws('oportunidades', f'Oportunidade #{id_oportunidade} encerrada.')
         self.definir_flash('sucesso', f'Oportunidade #{id_oportunidade} encerrada.')
         return redirect('/oportunidades')
 
@@ -519,6 +570,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/oportunidades')
 
+        self.notificar_ws('oportunidades', f'Oportunidade #{id_oportunidade} removida.')
         self.definir_flash('sucesso', f'Oportunidade #{id_oportunidade} removida definitivamente.')
         return redirect('/oportunidades')
 
@@ -530,6 +582,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/oportunidades')
 
+        self.notificar_ws('oportunidades', f'Novo interesse em "{oportunidade.titulo}".')
         self.definir_flash('sucesso', f'Interesse registrado em "{oportunidade.titulo}"!')
         return redirect('/oportunidades')
 
@@ -541,6 +594,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/oportunidades')
 
+        self.notificar_ws('oportunidades', f'Interesse retirado na oportunidade #{id_oportunidade}.')
         self.definir_flash('sucesso', 'Interesse removido com sucesso.')
         return redirect('/oportunidades')
 
@@ -681,6 +735,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/biblioteca')
 
+        self.notificar_ws('biblioteca', 'Novo livro cadastrado no acervo.')
         self.definir_flash('sucesso', 'Livro cadastrado no acervo com sucesso!')
         return redirect('/biblioteca')
 
@@ -712,6 +767,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect(f'/biblioteca/{id_livro}/editar')
 
+        self.notificar_ws('biblioteca', f'Livro #{id_livro} atualizado no acervo.')
         self.definir_flash('sucesso', 'Livro atualizado com sucesso!')
         return redirect('/biblioteca')
 
@@ -723,6 +779,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/biblioteca')
 
+        self.notificar_ws('biblioteca', f'Livro "{removido.titulo}" removido do acervo.')
         self.definir_flash('sucesso', f'Livro "{removido.titulo}" removido do acervo.')
         return redirect('/biblioteca')
 
@@ -734,6 +791,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/biblioteca')
 
+        self.notificar_ws('biblioteca', f'Livro reservado: "{livro.titulo}".')
         self.definir_flash(
             'sucesso',
             f'Reserva de "{livro.titulo}" concluída! Devolver até {bib.formatar_data(devolver_ate)}.',
@@ -748,6 +806,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/biblioteca')
 
+        self.notificar_ws('biblioteca', f'Empréstimo #{id_emprestimo} renovado.')
         self.definir_flash('sucesso', f'Empréstimo renovado! Novo prazo: {bib.formatar_data(nova_data)}.')
         return redirect('/biblioteca')
 
@@ -759,6 +818,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/biblioteca')
 
+        self.notificar_ws('biblioteca', f'Livro devolvido (empréstimo #{id_emprestimo}).')
         msg = 'Livro devolvido com sucesso!'
         if multa:
             msg += f' Multa por atraso: R$ {multa:.2f}.'
@@ -958,7 +1018,7 @@ class Application:
             banco.atualizar_perfil(conta, email, nome=nome, curso_ou_area=curso_ou_area)
         except (ValueError, PermissionError) as erro:
             self.definir_flash('erro', str(erro))
-            return redirect(f'/usuarios/editar?email={email}')
+            return redirect(f"/usuarios/editar?email={quote(email, safe='')}")
 
         self.definir_flash('sucesso', f'Perfil de {email} atualizado com sucesso!')
         return redirect('/usuarios')
@@ -973,6 +1033,7 @@ class Application:
             self.definir_flash('erro', str(erro))
             return redirect('/usuarios')
 
+        self.revogar_sessoes_email(email)
         self.definir_flash('sucesso', f'Usuário {email} removido com sucesso.')
         return redirect('/usuarios')
 

@@ -17,7 +17,7 @@
         % if pode_gerenciar:
         <section class="bloco">
             <h3>Publicar Nova Oportunidade</h3>
-            <form action="/oportunidades/novo" method="post" class="grade-form">
+            <form action="/oportunidades/novo" method="post" class="grade-form" data-async-form="criar">
                 <div>
                     <label for="titulo">Título</label>
                     <input id="titulo" name="titulo" type="text" maxlength="100" required>
@@ -49,6 +49,7 @@
         </section>
         % end
 
+        <div id="conteudo-tempo-real" data-canal="oportunidades">
         % if interessados_lista is not None and oportunidade_foco is not None:
         <section class="bloco">
             <h3>Interessados em #{{oportunidade_foco.id}} — {{oportunidade_foco.titulo}} ({{len(interessados_lista)}})</h3>
@@ -217,6 +218,7 @@
             % end
         </section>
         % end
+        </div>
     </main>
 </body>
 </html>

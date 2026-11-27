@@ -1,2 +1,4 @@
 bottle
 pdfplumber
+gevent
+gevent-websocket

@@ -510,49 +510,71 @@ class Biblioteca:
     def editar_livro(self, conta, id_livro, titulo, autores, area, exemplares):
         exigir_admin(conta)
 
-        livro = self.obter_livro(id_livro)
         titulo, autores, area = titulo.strip(), autores.strip(), area.strip()
 
         if not titulo or not autores or not area:
             raise ValueError('Título, autores e área são obrigatórios.')
 
-        emprestados = livro.exemplares - livro.disponiveis
-        if exemplares < max(1, emprestados):
-            raise ValueError(
-                f'Número de exemplares inválido (mínimo {max(1, emprestados)} devido aos empréstimos ativos).'
-            )
+        with closing(_conectar()) as conexao:
+            conexao.isolation_level = None
+            conexao.execute('BEGIN IMMEDIATE')
+            try:
+                linha = conexao.execute(
+                    self._consulta_livros + ' WHERE livros.id = ?', (id_livro,)
+                ).fetchone()
 
-        try:
-            with closing(_conectar()) as conexao, conexao:
-                conexao.execute(
-                    '''
-                    UPDATE livros
-                    SET titulo = ?, autores = ?, area = ?, exemplares = ?
-                    WHERE id = ?
-                    ''',
-                    (titulo, autores, area, exemplares, id_livro)
-                )
-        except sqlite3.IntegrityError:
-            raise ValueError('Já existe outro livro com este título e autores.')
+                if linha is None:
+                    raise ValueError('Livro não encontrado.')
+
+                emprestados = linha['emprestados']
+                if exemplares < max(1, emprestados):
+                    raise ValueError(
+                        f'Número de exemplares inválido (mínimo {max(1, emprestados)} devido aos empréstimos ativos).'
+                    )
+
+                try:
+                    conexao.execute(
+                        '''
+                        UPDATE livros
+                        SET titulo = ?, autores = ?, area = ?, exemplares = ?
+                        WHERE id = ?
+                        ''',
+                        (titulo, autores, area, exemplares, id_livro)
+                    )
+                except sqlite3.IntegrityError:
+                    raise ValueError('Já existe outro livro com este título e autores.')
+
+                conexao.execute('COMMIT')
+            except Exception:
+                conexao.execute('ROLLBACK')
+                raise
 
         return self.obter_livro(id_livro)
 
     def remover_livro(self, conta, id_livro):
         exigir_admin(conta)
 
-        livro = self.obter_livro(id_livro)
+        with closing(_conectar()) as conexao:
+            conexao.isolation_level = None
+            conexao.execute('BEGIN IMMEDIATE')
+            try:
+                linha = conexao.execute(
+                    self._consulta_livros + ' WHERE livros.id = ?', (id_livro,)
+                ).fetchone()
 
-        with closing(_conectar()) as conexao, conexao:
-            ativos = conexao.execute(
-                'SELECT COUNT(*) FROM emprestimos WHERE livro_id = ? AND devolvido_em IS NULL',
-                (id_livro,)
-            ).fetchone()[0]
+                if linha is None:
+                    raise ValueError('Livro não encontrado.')
 
-            if ativos > 0:
-                raise ValueError('Não é possível remover um livro com empréstimo em andamento.')
+                if linha['emprestados'] > 0:
+                    raise ValueError('Não é possível remover um livro com empréstimo em andamento.')
 
-            conexao.execute('DELETE FROM emprestimos WHERE livro_id = ?', (id_livro,))
-            conexao.execute('DELETE FROM livros WHERE id = ?', (id_livro,))
+                livro = self._montar_livro(linha)
+                conexao.execute('DELETE FROM emprestimos WHERE livro_id = ?', (id_livro,))
+                conexao.execute('DELETE FROM livros WHERE id = ?', (id_livro,))
+                conexao.execute('COMMIT')
+            except Exception:
+                conexao.execute('ROLLBACK')
+                raise
 
         return livro
 

@@ -382,6 +382,199 @@ class TestRotasBMVC(TesteComBanco):
         self.assertTrue(local.endswith('/menu'))
         self.assertEqual(banco.buscar_perfil('calouro@unb.br').nome, 'Carlos Calouro')
 
+    def test_duas_sessoes_simultaneas_nao_se_misturam(self):
+        # Sessão 1 (docente) e Sessão 2 (discente) mantêm cookies independentes em /oportunidades.
+        self._fazer_login('prof@unb.br', 'senhanova123')
+        cookies_prof = dict(self.cookies)
+
+        self._fazer_login('ana@aluno.unb.br', 'senhanova123')
+        cookies_aluno = dict(self.cookies)
+
+        self.cookies = dict(cookies_prof)
+        status, _, html_prof = self._requisicao('GET', '/oportunidades')
+        self.assertEqual(status, 200)
+        self.assertIn('Publicar Nova Oportunidade', html_prof)
+
+        self.cookies = dict(cookies_aluno)
+        status, _, html_aluno = self._requisicao('GET', '/oportunidades')
+        self.assertEqual(status, 200)
+        self.assertNotIn('Publicar Nova Oportunidade', html_aluno)
+        self.assertIn('Meus Interesses', html_aluno)
+
+        self.cookies = dict(cookies_prof)
+        status, _, html_prof2 = self._requisicao('GET', '/oportunidades')
+        self.assertEqual(status, 200)
+        self.assertIn('Publicar Nova Oportunidade', html_prof2)
+
+    def test_exclusao_revoga_sessao_e_limpa_oportunidades_do_docente(self):
+        from datetime import datetime, timedelta
+        from urllib.parse import quote
+
+        vaga = ops.publicar(self.prof, 'Pesquisa Temporária', 'projeto_pesquisa', 'Desc', 'prof@unb.br')
+        ops.demonstrar_interesse(self.aluno, vaga.id)
+
+        # Docente faz login e guarda o cookie da sessão ativa.
+        self._fazer_login('prof@unb.br', 'senhanova123')
+        cookies_prof = dict(self.cookies)
+
+        # Admin exclui o docente -> remove oportunidades/interesses e revoga a sessão ativa.
+        self._fazer_login('admin@unb.br', 'adminsenha')
+        self._requisicao('POST', '/usuarios/excluir', {'email': 'prof@unb.br'})
+        self.assertIsNone(ops.buscar(vaga.id))
+
+        self.cookies = dict(cookies_prof)
+        status, local, _ = self._requisicao('GET', '/menu')
+        self.assertEqual(status, 303)
+        self.assertTrue(local.endswith('/login'))
+
+        # Sessão vencida é rejeitada no servidor.
+        self._fazer_login('ana@aluno.unb.br', 'senhanova123')
+        sid = self.cookies['session_id']
+        sessoes = self.route.ctl._Application__sessoes
+        self.assertNotIn('senha_temporaria', sessoes[sid])
+        sessoes[sid]['expira_em'] = datetime.now() - timedelta(seconds=1)
+        status, local, _ = self._requisicao('GET', '/menu')
+        self.assertEqual(status, 303)
+        self.assertTrue(local.endswith('/login'))
+
+        # E-mail com '+' funciona no link e na edição de usuário.
+        self.criar_perfil('ana+lab@unb.br', 'discente', '39053344705')
+        self._fazer_login('admin@unb.br', 'adminsenha')
+        status, _, html_lista = self._requisicao('GET', '/usuarios')
+        self.assertEqual(status, 200)
+        self.assertIn(f"/usuarios/editar?email={quote('ana+lab@unb.br', safe='')}", html_lista)
+        status, _, _ = self._requisicao('GET', '/usuarios/editar', query=f"email={quote('ana+lab@unb.br', safe='')}")
+        self.assertEqual(status, 200)
+
+
+class _FakeWS:
+    def __init__(self, falhar=False):
+        self.mensagens = []
+        self.falhar = falhar
+
+    def send(self, carga):
+        if self.falhar:
+            raise OSError('socket fechado')
+        self.mensagens.append(carga)
+
+
+class TestWebSocketBMVC(TesteComBanco):
+    # Valida broadcast WebSocket em Oportunidades e Biblioteca mesmo sem Bottle instalado.
+
+    def setUp(self):
+        super().setUp()
+        import json
+        import sys
+        import types
+
+        self.json = json
+        self.sys = sys
+        self.cookie = None
+        self.forms_atual = {}
+        self.bottle_anterior = sys.modules.get('bottle')
+        self.app_mod_anterior = sys.modules.get('app.controllers.application')
+
+        bottle_fake = types.ModuleType('bottle')
+        bottle_fake.redirect = lambda url: ('redirect', url)
+        bottle_fake.template = lambda path, **kw: ('template', path, kw)
+        bottle_fake.request = types.SimpleNamespace(
+            get_cookie=lambda k: self.cookie if k == 'session_id' else None,
+            forms=types.SimpleNamespace(getunicode=lambda k, d='': self.forms_atual.get(k, d)),
+            query=types.SimpleNamespace(getunicode=lambda k, d='': ''),
+        )
+        sys.modules['bottle'] = bottle_fake
+        sys.modules.pop('app.controllers.application', None)
+
+        from app.controllers.application import Application
+        self.ctl = Application(garantir_exemplos=False)
+        self.ws = _FakeWS()
+        self.ws_quebrado = _FakeWS(falhar=True)
+        self.ctl.registrar_ws(self.ws)
+        self.ctl.registrar_ws(self.ws_quebrado)
+
+        self.aluno = self.criar_perfil('ana@aluno.unb.br', 'discente', '52998224725')
+        self.prof = self.criar_perfil('prof@unb.br', 'docente', '11144477735')
+
+    def tearDown(self):
+        self.sys.modules.pop('app.controllers.application', None)
+        if self.app_mod_anterior is not None:
+            self.sys.modules['app.controllers.application'] = self.app_mod_anterior
+        if self.bottle_anterior is not None:
+            self.sys.modules['bottle'] = self.bottle_anterior
+        else:
+            self.sys.modules.pop('bottle', None)
+        super().tearDown()
+
+    def _logar(self, email, senha):
+        sid, erro, _ = self.ctl.autenticar_usuario(email, senha)
+        self.assertIsNone(erro)
+        self.cookie = sid
+
+    def _eventos(self):
+        return [self.json.loads(m) for m in self.ws.mensagens]
+
+    def test_ws_exige_autenticacao_e_notifica_oportunidades_e_biblioteca(self):
+        self.assertFalse(self.ctl.sessao_valida_ws())
+
+        # Docente cria, edita e remove oportunidade -> WebSocket recebe canal 'oportunidades'
+        self._logar('prof@unb.br', 'senhanova123')
+        self.assertTrue(self.ctl.sessao_valida_ws())
+
+        self.forms_atual = {
+            'titulo': 'Monitoria WS',
+            'categoria': 'monitoria',
+            'descricao': 'Teste em tempo real',
+            'contato': 'prof@unb.br',
+            'prazo': '',
+        }
+        self.ctl.criar_oportunidade()
+        op = ops.listar_minhas(self.prof)[0]
+        self.assertEqual(self._eventos()[-1]['canal'], 'oportunidades')
+
+        # Discente demonstra e retira interesse -> WebSocket notifica
+        self._logar('ana@aluno.unb.br', 'senhanova123')
+        self.ctl.demonstrar_interesse(op.id)
+        self.ctl.retirar_interesse(op.id)
+        self.assertEqual([e['canal'] for e in self._eventos()[-2:]], ['oportunidades', 'oportunidades'])
+
+        # Docente edita e exclui oportunidade
+        self._logar('prof@unb.br', 'senhanova123')
+        self.forms_atual = {
+            'titulo': 'Monitoria WS v2',
+            'descricao': 'Atualizada',
+            'contato': 'prof@unb.br',
+            'prazo': '',
+        }
+        self.ctl.editar_oportunidade(op.id)
+        self.ctl.excluir_oportunidade(op.id)
+        self.assertEqual(self._eventos()[-1]['canal'], 'oportunidades')
+
+        # Admin cria, edita e remove livro; discente reserva, renova e devolve -> canal 'biblioteca'
+        self._logar('admin@unb.br', 'adminsenha')
+        self.forms_atual = {
+            'titulo': 'Livro WS',
+            'autores': 'Autor WS',
+            'area': 'Software',
+            'exemplares': '2',
+        }
+        self.ctl.criar_livro()
+        lib = biblioteca.Biblioteca()
+        livro = lib.buscar('Livro WS')[0]
+        self.assertEqual(self._eventos()[-1]['canal'], 'biblioteca')
+
+        self.forms_atual['exemplares'] = '3'
+        self.ctl.editar_livro(livro.id)
+
+        self._logar('ana@aluno.unb.br', 'senhanova123')
+        self.ctl.reservar_livro(livro.id)
+        emp = lib.emprestimos_ativos(self.aluno)[0]
+        self.ctl.renovar_emprestimo(emp.id)
+        self.ctl.devolver_emprestimo(emp.id)
+
+        self._logar('admin@unb.br', 'adminsenha')
+        self.ctl.excluir_livro(livro.id)
+        self.assertEqual([e['canal'] for e in self._eventos()[-6:]], ['biblioteca'] * 6)
+
 
 if __name__ == '__main__':
     unittest.main()

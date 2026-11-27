@@ -231,40 +231,52 @@ def remover_usuario(admin, email):
     if getattr(admin, 'email', '').casefold() == email.casefold():
         raise ValueError('Você não pode remover a sua própria conta de administrador.')
 
-    with closing(conectar()) as conexao, conexao:
-        acesso = conexao.execute(
-            'SELECT email FROM acessos WHERE email = ?',
-            (email,)
-        ).fetchone()
-        if acesso is None:
-            raise ValueError('Usuário não encontrado.')
+    with closing(conectar()) as conexao:
+        conexao.isolation_level = None
+        conexao.execute('BEGIN IMMEDIATE')
+        try:
+            acesso = conexao.execute(
+                'SELECT email FROM acessos WHERE email = ?',
+                (email,)
+            ).fetchone()
+            if acesso is None:
+                raise ValueError('Usuário não encontrado.')
 
-        usuario = conexao.execute(
-            'SELECT id_user FROM usuarios WHERE email = ?',
-            (email,)
-        ).fetchone()
-
-        if usuario is not None:
-            id_user = usuario['id_user']
-            tem_emprestimos = conexao.execute(
-                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'emprestimos'"
+            usuario = conexao.execute(
+                'SELECT id_user FROM usuarios WHERE email = ?',
+                (email,)
             ).fetchone()
 
-            if tem_emprestimos:
-                ativos = conexao.execute(
-                    'SELECT COUNT(*) FROM emprestimos WHERE usuario_id = ? AND devolvido_em IS NULL',
+            if usuario is not None:
+                id_user = usuario['id_user']
+                tem_emprestimos = conexao.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'emprestimos'"
+                ).fetchone()
+
+                if tem_emprestimos:
+                    ativos = conexao.execute(
+                        'SELECT COUNT(*) FROM emprestimos WHERE usuario_id = ? AND devolvido_em IS NULL',
+                        (id_user,)
+                    ).fetchone()[0]
+                    if ativos > 0:
+                        raise ValueError('Não é possível remover usuário com livro emprestado em andamento.')
+                    conexao.execute('DELETE FROM emprestimos WHERE usuario_id = ?', (id_user,))
+
+                conexao.execute(
+                    'DELETE FROM interesses WHERE oportunidade_id IN (SELECT id FROM oportunidades WHERE autor_id = ?)',
                     (id_user,)
-                ).fetchone()[0]
-                if ativos > 0:
-                    raise ValueError('Não é possível remover usuário com livro emprestado em andamento.')
-                conexao.execute('DELETE FROM emprestimos WHERE usuario_id = ?', (id_user,))
+                )
+                conexao.execute('DELETE FROM oportunidades WHERE autor_id = ?', (id_user,))
+                conexao.execute('DELETE FROM interesses WHERE discente_id = ?', (id_user,))
+                conexao.execute('DELETE FROM matriculas WHERE discente_id = ?', (id_user,))
+                conexao.execute('DELETE FROM ofertas WHERE docente_id = ?', (id_user,))
+                conexao.execute('DELETE FROM usuarios WHERE id_user = ?', (id_user,))
 
-            conexao.execute('DELETE FROM interesses WHERE discente_id = ?', (id_user,))
-            conexao.execute('DELETE FROM matriculas WHERE discente_id = ?', (id_user,))
-            conexao.execute('DELETE FROM ofertas WHERE docente_id = ?', (id_user,))
-            conexao.execute('DELETE FROM usuarios WHERE id_user = ?', (id_user,))
-
-        conexao.execute('DELETE FROM acessos WHERE email = ?', (email,))
+            conexao.execute('DELETE FROM acessos WHERE email = ?', (email,))
+            conexao.execute('COMMIT')
+        except Exception:
+            conexao.execute('ROLLBACK')
+            raise
 
 
 # ============================= { RECONSTRUÇÃO DE OBJETOS } ============================= #

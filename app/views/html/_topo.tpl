@@ -8,6 +8,7 @@
                 </div>
             </a>
             <div class="topo-acoes">
+                <span id="ws-status" class="ws-status ws-conectando" title="Status da conexão WebSocket">● Conectando...</span>
                 <span class="badge-tipo">{{usuario['tipo_usuario'].upper()}}</span>
                 <form action="/logout" method="post" style="margin:0;">
                     <button type="submit" class="btn-sair">Sair</button>
@@ -31,6 +32,8 @@
     </div>
 
     <main class="painel">
+        <div id="toast-ws" class="toast-ws" role="status" aria-live="polite"></div>
+        <script src="/static/js/realtime.js" defer></script>
         % if defined('flash') and flash:
             <div class="{{'alerta-sucesso' if flash['tipo'] == 'sucesso' else 'alerta-erro'}}" role="alert">{{flash['texto']}}</div>
         % end

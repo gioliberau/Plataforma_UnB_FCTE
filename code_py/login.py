@@ -306,6 +306,26 @@ def trocar_senha(email, senha_atual, nova_senha):
     return autenticar(email, nova_senha)
 
 
+def definir_nova_senha_primeiro_acesso(conta, nova_senha):
+    # Define a nova senha para uma conta autenticada em primeiro acesso (sem manter senha temporária em memória).
+    if not isinstance(conta, Conta) or not conta.precisa_trocar_senha:
+        raise PermissionError('Esta conta não está em fluxo de primeiro acesso.')
+
+    _validar_nova_senha(nova_senha)
+
+    with closing(banco.conectar()) as conexao, conexao:
+        conexao.execute(
+            '''
+            UPDATE acessos
+            SET senha_hash = ?, trocar_senha = 0
+            WHERE email = ? AND trocar_senha = 1
+            ''',
+            (gerar_hash_senha(nova_senha), conta.email)
+        )
+
+    return autenticar(conta.email, nova_senha)
+
+
 def listar_acessos(admin):
     # Retorna todos os acessos cadastrados (uso administrativo).
     exigir_admin(admin)

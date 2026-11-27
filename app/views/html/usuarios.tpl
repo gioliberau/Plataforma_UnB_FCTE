@@ -66,7 +66,7 @@
                             <td>
                                 <div class="acoes-linha">
                                     % if r['tem_perfil']:
-                                    <a href="/usuarios/editar?email={{r['email']}}" class="btn btn-pequeno">Editar</a>
+                                    <a href="/usuarios/editar?email={{quote_url(r['email'])}}" class="btn btn-pequeno">Editar</a>
                                     % end
                                     % if not r['eh_proprio']:
                                     <form action="/usuarios/excluir" method="post" onsubmit="return confirm('Remover definitivamente esta conta e seu perfil?');">

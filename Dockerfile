@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /bmeta
 
-RUN pip install --no-cache-dir bottle pdfplumber
+RUN pip install --no-cache-dir bottle pdfplumber gevent gevent-websocket
 
 COPY . /bmeta
 

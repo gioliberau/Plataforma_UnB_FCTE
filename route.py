@@ -1,11 +1,24 @@
+try:
+    from gevent import monkey
+    monkey.patch_all()
+except ImportError:
+    pass
+
 import os
 
 from app.controllers.application import Application
-from bottle import Bottle, redirect, request, response, run, static_file
+from bottle import Bottle, abort, redirect, request, response, run, static_file
 
 
 app = Bottle()
 ctl = Application()
+
+
+@app.hook('after_request')
+def desativar_cache_paginas():
+    if not request.path.startswith('/static/'):
+        response.set_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+        response.set_header('Pragma', 'no-cache')
 
 
 # ============================= { ESTÁTICOS E LOGIN } ============================= #
@@ -261,5 +274,35 @@ def cardapio():
     return ctl.cardapio()
 
 
+# ============================= { WEBSOCKET TEMPO REAL } ============================= #
+
+@app.route('/ws')
+def websocket_canal():
+    ws = request.environ.get('wsgi.websocket')
+    if not ws:
+        abort(400, 'Conexão WebSocket esperada.')
+
+    if not ctl.sessao_valida_ws():
+        ws.close()
+        return
+
+    ctl.registrar_ws(ws)
+    try:
+        while True:
+            mensagem = ws.receive()
+            if mensagem is None:
+                break
+    finally:
+        ctl.remover_ws(ws)
+
+
 if __name__ == '__main__':
-    run(app, host='0.0.0.0', port=8080, debug=os.environ.get('BMVC_DEBUG') == '1')
+    try:
+        from gevent.pywsgi import WSGIServer
+        from geventwebsocket.handler import WebSocketHandler
+
+        servidor = WSGIServer(('0.0.0.0', 8080), app, handler_class=WebSocketHandler)
+        print('Servidor BMVC com WebSocket rodando em http://0.0.0.0:8080')
+        servidor.serve_forever()
+    except ImportError:
+        run(app, host='0.0.0.0', port=8080, debug=os.environ.get('BMVC_DEBUG') == '1')
